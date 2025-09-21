@@ -1,0 +1,3 @@
+"use strict";var m=require("child_process"),u=require("fs");function l(a,s){try{let t=(0,m.execSync)(`npm view ${a}@${s} time --json`,{encoding:"utf8"}),o=JSON.parse(t)?.[s];return o?new Date(o):null}catch{return null}}(function(){let s=process.argv[2],t=parseInt(process.argv[3]||"7",10),c=String(process.argv[4]||"true")==="true",o=JSON.parse((0,u.readFileSync)(s,"utf8")),r=[];for(let{name:e,version:n}of o){let i=l(e,n);if(!i)continue;let g=(Date.now()-i.getTime())/864e5;g<t&&r.push({name:e,version:n,publishedAt:i.toISOString(),ageDays:+g.toFixed(2)})}if(r.length){let e=`minimumReleaseAge < ${t}d:
+`+r.map(n=>`- ${n.name}@${n.version} (${n.ageDays}d, ${n.publishedAt})`).join(`
+`);c?console.warn(e):(console.error(e),process.exit(1))}})();
