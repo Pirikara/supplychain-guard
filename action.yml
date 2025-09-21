@@ -38,6 +38,10 @@ inputs:
     description: "Warn (do not fail) for: minimumAge / OpenSSF / GuardDog"
     default: "true"
 
+  workdir:
+    description: "Working directory (where package.json/lockfile live)"
+    default: "."
+
 outputs:
   changed-count:
     description: "Count of changed deps in this PR (from dep-diff)"
@@ -81,6 +85,7 @@ runs:
 
     - name: Frozen install (lock/integrity check)
       shell: bash
+      working-directory: ${{ inputs.workdir }}
       run: |
         set -euo pipefail
 
@@ -131,6 +136,7 @@ runs:
     - name: Compute changed dependencies
       id: diff
       shell: bash
+      working-directory: ${{ inputs.workdir }}
       run: |
         set -e
         node "$GITHUB_ACTION_PATH/dist/dep-diff.js" > changed.json
