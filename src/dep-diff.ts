@@ -3,9 +3,10 @@ import { readFileSync, existsSync } from "node:fs";
 
 type Dep = { name: string; version: string };
 
-function gitShow(ref: string, file: string): string | null {
+function gitShow(ref: string, file: string, workdir = "."): string | null {
   try {
-    return execSync(`git show ${ref}:${file}`, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    const gitPath = workdir === "." ? file : `${workdir}/${file}`;
+    return execSync(`git show ${ref}:${gitPath}`, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
   } catch {
     return null;
   }
@@ -82,23 +83,37 @@ function fromPackageJson(json: string): Map<string, string> {
   return map;
 }
 
-function depsForRef(ref: string): Map<string, string> {
+function depsForRef(ref: string, workdir = "."): Map<string, string> {
   // 優先順：package-lock → yarn.lock → pnpm-lock → package.json
-  const pl = gitShow(ref, "package-lock.json");
+  const pl = gitShow(ref, "package-lock.json", workdir);
   if (pl) return fromPackageLock(pl);
-  const yl = gitShow(ref, "yarn.lock");
+  const yl = gitShow(ref, "yarn.lock", workdir);
   if (yl) return fromYarnLock(yl);
-  const pn = gitShow(ref, "pnpm-lock.yaml");
+  const pn = gitShow(ref, "pnpm-lock.yaml", workdir);
   if (pn) return fromPnpmLock(pn);
-  const pj = gitShow(ref, "package.json");
+  const pj = gitShow(ref, "package.json", workdir);
   if (pj) return fromPackageJson(pj);
   return new Map();
 }
 
 (function main() {
   const { base, head } = getRefs();
-  const baseMap = depsForRef(base);
-  const headMap = depsForRef(head);
+
+  // Detect workdir from current working directory relative to git root
+  let workdir = ".";
+  try {
+    const gitRoot = execSync("git rev-parse --show-toplevel", { encoding: "utf8" }).trim();
+    const currentDir = process.cwd();
+    if (currentDir !== gitRoot) {
+      const relativePath = require("path").relative(gitRoot, currentDir);
+      if (relativePath && !relativePath.startsWith("..")) {
+        workdir = relativePath;
+      }
+    }
+  } catch {}
+
+  const baseMap = depsForRef(base, workdir);
+  const headMap = depsForRef(head, workdir);
   const changed: Dep[] = [];
   for (const [name, ver] of headMap.entries()) {
     const b = baseMap.get(name);
