@@ -26,11 +26,7 @@ jobs:
       - name: Supply Chain Guard (Self-Test)
         uses: ./
         with:
-          node-version: "lts/*"
-          ignore-scripts: "true"
-          minimum-age-days: "7"
           enable-ossf: "true"
           enable-guarddog: "true"
-          guarddog-rules: ""
-          guarddog-fail: "false"
-          warn-only: "true"
+          guarddog-fail: "true"
+          warn-only: "false"
