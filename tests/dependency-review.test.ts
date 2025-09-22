@@ -38,39 +38,30 @@ describe('dependency-review', () => {
 
   describe('basic functionality', () => {
     it('should handle missing GITHUB_TOKEN', () => {
-      const originalToken = process.env.GITHUB_TOKEN;
-      delete process.env.GITHUB_TOKEN;
-
       try {
         execSync(`node ${join(__dirname, '../dist/dependency-review.js')}`, {
           encoding: 'utf8',
-          stdio: 'pipe'
+          stdio: 'pipe',
+          env: { ...process.env, GITHUB_TOKEN: undefined }
         });
         fail('Expected script to exit with error');
       } catch (error: any) {
         expect(error.status).toBe(1);
         expect(error.stderr).toContain('GITHUB_TOKEN is required');
-      } finally {
-        process.env.GITHUB_TOKEN = originalToken;
       }
     });
 
     it('should handle missing GITHUB_REPOSITORY', () => {
-      const originalRepo = process.env.GITHUB_REPOSITORY;
-      delete process.env.GITHUB_REPOSITORY;
-
       try {
         execSync(`node ${join(__dirname, '../dist/dependency-review.js')}`, {
           encoding: 'utf8',
           stdio: 'pipe',
-          env: { ...process.env, GITHUB_TOKEN: 'fake-token' }
+          env: { ...process.env, GITHUB_TOKEN: 'fake-token', GITHUB_REPOSITORY: undefined }
         });
         fail('Expected script to exit with error');
       } catch (error: any) {
         expect(error.status).toBe(1);
         expect(error.stderr).toContain('GITHUB_REPOSITORY environment variable is required');
-      } finally {
-        process.env.GITHUB_REPOSITORY = originalRepo;
       }
     });
 
