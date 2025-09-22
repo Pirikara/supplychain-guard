@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 type Changed = { name: string; version: string; ecosystem: string }[];
 
@@ -17,7 +17,7 @@ const ECOSYSTEM_MAP: Record<string, string> = {
   npm: "npm",
   pip: "pypi",
   go: "go",
-  actions: "github-action"
+  actions: "github-action",
 };
 
 function shouldSkipPackage(name: string, ecosystem: string): boolean {
@@ -28,20 +28,19 @@ function shouldSkipPackage(name: string, ecosystem: string): boolean {
   return false;
 }
 
-
 async function scanPackage(
   ecosystem: string,
   name: string,
   version: string,
-  rulesFlags: string
+  rulesFlags: string,
 ): Promise<GuardDogResult | null> {
   try {
     console.log(`  Scanning ${ecosystem}:${name}@${version}...`);
 
     const command = `python3 -m guarddog "${ecosystem}" scan "${name}" --version "${version}" ${rulesFlags} --output-format json`;
     const output = execSync(command, {
-      encoding: 'utf8',
-      stdio: 'pipe'
+      encoding: "utf8",
+      stdio: "pipe",
     });
 
     if (!output.trim()) {
@@ -51,7 +50,7 @@ async function scanPackage(
     const result: GuardDogResult = JSON.parse(output);
     result.ecosystem = ecosystem;
     return result;
-  } catch (error) {
+  } catch (_error) {
     // GuardDog scan failures are common (package not found, etc.)
     // We silently continue rather than failing the entire process
     return null;
@@ -63,14 +62,14 @@ async function installGuardDog(): Promise<boolean> {
     console.log("Installing GuardDog...");
 
     // Skip installation in test environment
-    if (process.env.NODE_ENV === 'test') {
+    if (process.env.NODE_ENV === "test") {
       console.log("Test environment detected, skipping GuardDog installation");
       return false;
     }
 
-    execSync("python3 -m pip install --quiet guarddog", { stdio: 'inherit' });
+    execSync("python3 -m pip install --quiet guarddog", { stdio: "inherit" });
     return true;
-  } catch (error) {
+  } catch (_error) {
     console.warn("Failed to install GuardDog via pip, skipping scan");
     return false;
   }
@@ -103,7 +102,10 @@ async function main() {
   const rulesFlags = "";
 
   // Group packages by ecosystem
-  const ecosystemGroups: Record<string, Array<{name: string, version: string}>> = {};
+  const ecosystemGroups: Record<
+    string,
+    Array<{ name: string; version: string }>
+  > = {};
 
   for (const dep of changed) {
     const guardDogEcosystem = ECOSYSTEM_MAP[dep.ecosystem];
@@ -121,7 +123,7 @@ async function main() {
 
     ecosystemGroups[guardDogEcosystem].push({
       name: dep.name,
-      version: dep.version
+      version: dep.version,
     });
   }
 
@@ -141,7 +143,7 @@ async function main() {
       // Wait if we've reached max concurrency
       if (promises.length >= maxConcurrency) {
         const results = await Promise.all(promises);
-        allResults.push(...results.filter(r => r !== null));
+        allResults.push(...results.filter((r) => r !== null));
         promises.length = 0;
       }
 
@@ -151,7 +153,7 @@ async function main() {
     // Process remaining promises
     if (promises.length > 0) {
       const results = await Promise.all(promises);
-      allResults.push(...results.filter(r => r !== null));
+      allResults.push(...results.filter((r) => r !== null));
     }
   }
 
@@ -166,7 +168,8 @@ async function main() {
     const ecosystemCounts: Record<string, number> = {};
     for (const result of allResults) {
       if (result.ecosystem) {
-        ecosystemCounts[result.ecosystem] = (ecosystemCounts[result.ecosystem] || 0) + 1;
+        ecosystemCounts[result.ecosystem] =
+          (ecosystemCounts[result.ecosystem] || 0) + 1;
       }
     }
 
@@ -175,7 +178,9 @@ async function main() {
     }
 
     if (guardDogFail) {
-      console.error(`GuardDog reported ${allResults.length} findings across all ecosystems`);
+      console.error(
+        `GuardDog reported ${allResults.length} findings across all ecosystems`,
+      );
       process.exit(1);
     }
   } else {
@@ -185,6 +190,8 @@ async function main() {
 
 // Run main function
 main().catch((error) => {
-  console.error(`GuardDog scan failed: ${error instanceof Error ? error.message : error}`);
+  console.error(
+    `GuardDog scan failed: ${error instanceof Error ? error.message : error}`,
+  );
   process.exit(1);
 });

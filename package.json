@@ -6,6 +6,8 @@
   "scripts": {
     "build": "tsup src/*.ts --out-dir dist --format cjs --minify",
     "lint": "biome check .",
+    "lint:fix": "biome check . --write",
+    "format": "biome format . --write",
     "test": "jest",
     "test:watch": "jest --watch"
   },

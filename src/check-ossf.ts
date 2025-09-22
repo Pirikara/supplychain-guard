@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, lstatSync, existsSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 type Changed = { name: string; version: string; ecosystem: string }[];
@@ -11,7 +11,7 @@ const ECOSYSTEM_MAP: Record<string, string> = {
   go: "go",
   rubygems: "rubygems",
   nuget: "nuget",
-  maven: "maven"
+  maven: "maven",
 };
 
 (function main() {
@@ -37,7 +37,7 @@ const ECOSYSTEM_MAP: Record<string, string> = {
     }
   }
 
-  let totalHits: Array<{ecosystem: string, packages: string[]}> = [];
+  let totalHits: Array<{ ecosystem: string; packages: string[] }> = [];
 
   // Check each ecosystem
   for (const [ossfDir, packageNames] of Object.entries(ecosystemGroups)) {

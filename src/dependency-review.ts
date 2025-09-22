@@ -39,15 +39,20 @@ async function fetchJSON(path: string) {
   const res = await fetch(`https://api.github.com${path}`, {
     headers: {
       "User-Agent": "supplychain-guard",
-      "Authorization": `Bearer ${token}`,
-      "Accept": "application/vnd.github+json"
-    }
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+    },
   });
   if (!res.ok) throw new Error(`GitHub API ${res.status}: ${res.statusText}`);
   return res.json();
 }
 
-function getRefsFromEnvironment(): { base: string; head: string; owner: string; repo: string } {
+function getRefsFromEnvironment(): {
+  base: string;
+  head: string;
+  owner: string;
+  repo: string;
+} {
   // Get repository info from environment
   const repository = process.env.GITHUB_REPOSITORY;
   if (!repository) {
@@ -114,45 +119,60 @@ async function getDependencyChanges(): Promise<DependencyChange[]> {
 
       // Safety limit to prevent infinite loops
       if (page > 50) {
-        console.warn('Reached maximum page limit (50), stopping pagination');
+        console.warn("Reached maximum page limit (50), stopping pagination");
         break;
       }
     }
 
-    console.log(`Found total ${allChanges.length} dependency changes across ${page} pages`);
+    console.log(
+      `Found total ${allChanges.length} dependency changes across ${page} pages`,
+    );
 
     const changes: DependencyChange[] = allChanges
-      .filter(dep => dep.change_type === "added" || dep.change_type === "updated")
-      .map(dep => ({
+      .filter(
+        (dep) => dep.change_type === "added" || dep.change_type === "updated",
+      )
+      .map((dep) => ({
         name: dep.name,
         version: dep.version,
         ecosystem: dep.ecosystem,
         changeType: dep.change_type,
-        vulnerabilities: dep.vulnerabilities || []
+        vulnerabilities: dep.vulnerabilities || [],
       }));
 
     return changes;
   } catch (error) {
-    console.error(`Error fetching dependency changes: ${error instanceof Error ? error.message : error}`);
+    console.error(
+      `Error fetching dependency changes: ${error instanceof Error ? error.message : error}`,
+    );
     throw error;
   }
 }
 
-async function checkMalwareVulnerabilities(changes: DependencyChange[]): Promise<{ name: string; version: string; vulnerabilities: VulnerabilityInfo[] }[]> {
-  const malwareHits: { name: string; version: string; vulnerabilities: VulnerabilityInfo[] }[] = [];
+async function checkMalwareVulnerabilities(
+  changes: DependencyChange[],
+): Promise<
+  { name: string; version: string; vulnerabilities: VulnerabilityInfo[] }[]
+> {
+  const malwareHits: {
+    name: string;
+    version: string;
+    vulnerabilities: VulnerabilityInfo[];
+  }[] = [];
 
   for (const change of changes) {
-    const malwareVulns = change.vulnerabilities.filter(vuln =>
-      vuln.advisory.summary.toLowerCase().includes("malware") ||
-      vuln.advisory.description.toLowerCase().includes("malware") ||
-      vuln.advisory.ghsa_id.includes("malware") // Check if GitHub labels it as malware
+    const malwareVulns = change.vulnerabilities.filter(
+      (vuln) =>
+        vuln.advisory.summary.toLowerCase().includes("malware") ||
+        vuln.advisory.description.toLowerCase().includes("malware") ||
+        vuln.advisory.ghsa_id.includes("malware"), // Check if GitHub labels it as malware
     );
 
     if (malwareVulns.length > 0) {
       malwareHits.push({
         name: change.name,
         version: change.version,
-        vulnerabilities: malwareVulns
+        vulnerabilities: malwareVulns,
       });
     }
   }
@@ -161,18 +181,18 @@ async function checkMalwareVulnerabilities(changes: DependencyChange[]): Promise
 }
 
 (async function main() {
-  const outputFile = process.argv[2] || "changed.json";
-  const malwareOutputFile = process.argv[3] || "malware-hits.json";
+  const _outputFile = process.argv[2] || "changed.json";
+  const _malwareOutputFile = process.argv[3] || "malware-hits.json";
   const warnOnly = String(process.argv[4] || "false") === "true";
 
   try {
     const changes = await getDependencyChanges();
 
     // Output changed dependencies in the format expected by other tools
-    const changedDeps = changes.map(change => ({
+    const changedDeps = changes.map((change) => ({
       name: change.name,
       version: change.version,
-      ecosystem: change.ecosystem
+      ecosystem: change.ecosystem,
     }));
 
     // Write changed dependencies
@@ -182,9 +202,12 @@ async function checkMalwareVulnerabilities(changes: DependencyChange[]): Promise
     const malwareHits = await checkMalwareVulnerabilities(changes);
 
     if (malwareHits.length > 0) {
-      const msg = `Malware vulnerabilities detected:\n${malwareHits.map(hit =>
-        `- ${hit.name}@${hit.version}: ${hit.vulnerabilities.map(v => v.advisory.summary).join(", ")}`
-      ).join("\n")}`;
+      const msg = `Malware vulnerabilities detected:\n${malwareHits
+        .map(
+          (hit) =>
+            `- ${hit.name}@${hit.version}: ${hit.vulnerabilities.map((v) => v.advisory.summary).join(", ")}`,
+        )
+        .join("\n")}`;
 
       if (warnOnly) {
         console.warn(msg);
@@ -193,22 +216,30 @@ async function checkMalwareVulnerabilities(changes: DependencyChange[]): Promise
         process.exit(1);
       }
     } else {
-      console.log("No malware vulnerabilities detected in changed dependencies");
+      console.log(
+        "No malware vulnerabilities detected in changed dependencies",
+      );
     }
 
     // Output detailed vulnerability information
     console.error(`\nSummary: ${changes.length} dependencies changed`);
     console.error(`Malware hits: ${malwareHits.length}`);
 
-    const totalVulns = changes.reduce((sum, change) => sum + change.vulnerabilities.length, 0);
+    const totalVulns = changes.reduce(
+      (sum, change) => sum + change.vulnerabilities.length,
+      0,
+    );
     if (totalVulns > 0) {
       console.error(`Total vulnerabilities: ${totalVulns}`);
     }
-
   } catch (error) {
-    console.error(`Error during dependency review: ${error instanceof Error ? error.message : error}`);
+    console.error(
+      `Error during dependency review: ${error instanceof Error ? error.message : error}`,
+    );
     if (warnOnly) {
-      console.warn("Dependency review failed, but continuing due to warn-only mode");
+      console.warn(
+        "Dependency review failed, but continuing due to warn-only mode",
+      );
     } else {
       process.exit(1);
     }
