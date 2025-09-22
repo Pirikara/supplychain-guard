@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 
 type Changed = { name: string; version: string }[];
 
@@ -18,6 +18,12 @@ function npmPublishTime(name: string, version: string): Date | null {
   const file = process.argv[2];
   const minDays = parseInt(process.argv[3] || "7", 10);
   const warnOnly = String(process.argv[4] || "true") === "true";
+
+  if (!existsSync(file)) {
+    console.error(`Error: changed.json file not found: ${file}`);
+    process.exit(1);
+  }
+
   const changed: Changed = JSON.parse(readFileSync(file, "utf8"));
 
   const bad: { name: string; version: string; publishedAt: string; ageDays: number }[] = [];

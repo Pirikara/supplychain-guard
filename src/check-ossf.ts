@@ -1,11 +1,18 @@
-import { readFileSync, readdirSync, lstatSync } from "node:fs";
+import { readFileSync, readdirSync, lstatSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 type Changed = { name: string; version: string }[];
 
 (function main() {
-  const changed: Changed = JSON.parse(readFileSync(process.argv[2], "utf8"));
+  const file = process.argv[2];
   const root = process.argv[3]; // /tmp/ossf
+
+  if (!existsSync(file)) {
+    console.error(`Error: changed.json file not found: ${file}`);
+    process.exit(1);
+  }
+
+  const changed: Changed = JSON.parse(readFileSync(file, "utf8"));
   const npmDir = join(root, "npm");
   let hits: string[] = [];
   try {
