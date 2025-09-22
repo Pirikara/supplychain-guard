@@ -147,6 +147,7 @@ runs:
     - name: Minimum release age
       if: steps.diff.outputs.changed != '0'
       shell: bash
+      working-directory: ${{ inputs.workdir }}
       env:
         MIN_DAYS: ${{ inputs.minimum-age-days }}
         WARN_ONLY: ${{ inputs.warn-only }}
@@ -164,6 +165,7 @@ runs:
     - name: GitHub Advisory (malware)
       if: steps.diff.outputs.changed != '0'
       shell: bash
+      working-directory: ${{ inputs.workdir }}
       env:
         GITHUB_TOKEN: ${{ github.token }}
         WARN_ONLY: "false"
@@ -180,6 +182,7 @@ runs:
     - name: OpenSSF malicious-packages (warn)
       if: steps.diff.outputs.changed != '0' && inputs.enable-ossf == 'true'
       shell: bash
+      working-directory: ${{ inputs.workdir }}
       run: |
         set -e
         git clone --depth=1 https://github.com/ossf/malicious-packages /tmp/ossf
@@ -188,6 +191,7 @@ runs:
     - name: GuardDog (Docker)
       if: steps.diff.outputs.changed != '0' && inputs.enable-guarddog == 'true'
       shell: bash
+      working-directory: ${{ inputs.workdir }}
       run: |
         set -euo pipefail
         pkgs=$(jq -r '.[].name' changed.json | sort -u | tr '\n' ' ')
@@ -216,6 +220,7 @@ runs:
       id: guarddog_count
       if: steps.diff.outputs.changed != '0' && inputs.enable-guarddog == 'true'
       shell: bash
+      working-directory: ${{ inputs.workdir }}
       run: |
         if [ -s guarddog.json ]; then
           echo "count=$(jq 'length' guarddog.json)" >> "$GITHUB_OUTPUT"

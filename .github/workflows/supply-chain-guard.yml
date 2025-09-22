@@ -1,0 +1,31 @@
+name: Supply Chain Security
+
+on:
+  pull_request:
+    paths:
+      - "package.json"
+      - "pnpm-lock.yaml"
+  workflow_dispatch: {}
+
+jobs:
+  supply-chain-guard:
+    name: Supply Chain Guard
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+        with:
+          fetch-depth: 0
+
+      - name: Supply Chain Guard (Self-Test)
+        uses: ./
+        with:
+          node-version: "lts/*"
+          ignore-scripts: "true"
+          minimum-age-days: "7"
+          enable-ossf: "true"
+          enable-guarddog: "true"
+          guarddog-rules: "typosquat,suspicious_install_scripts,network_download,obfuscation"
+          guarddog-fail: "false"
+          warn-only: "true"
