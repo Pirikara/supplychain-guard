@@ -10,9 +10,6 @@ inputs:
     description: "Disable lifecycle scripts during install (npm/pnpm/bun use --ignore-scripts, Yarn Berry uses env)"
     default: "true"
 
-  minimum-age-days:
-    description: "Minimum release age (days) for newly added / updated dependencies"
-    default: "7"
 
   enable-ossf:
     description: "Check against OpenSSF malicious-packages (warn)"
@@ -42,9 +39,6 @@ outputs:
   changed-count:
     description: "Count of changed deps in this PR (from dep-diff)"
     value: ${{ steps.diff.outputs.changed }}
-  age-violations-count:
-    description: "Count of minimumReleaseAge violations (best-effort)"
-    value: ${{ steps.age_count.outputs.count }}
   malware-hits-count:
     description: "Count of GH Advisory (type: malware) hits (best-effort)"
     value: ${{ steps.adv_count.outputs.count }}
@@ -75,7 +69,6 @@ runs:
       run: |
         set -e
         test -f "$GITHUB_ACTION_PATH/dist/dependency-review.js" || { echo "::error::dist/dependency-review.js not found (build & commit dist)"; exit 1; }
-        test -f "$GITHUB_ACTION_PATH/dist/check-age.js" || { echo "::error::dist/check-age.js not found (build & commit dist)"; exit 1; }
         test -f "$GITHUB_ACTION_PATH/dist/check-ossf.js" || { echo "::error::dist/check-ossf.js not found (build & commit dist)"; exit 1; }
         test -f "$GITHUB_ACTION_PATH/dist/frozen-install.js" || { echo "::error::dist/frozen-install.js not found (build & commit dist)"; exit 1; }
 
@@ -115,23 +108,6 @@ runs:
           cat changed.json
         fi
 
-    - name: Minimum release age
-      if: steps.review.outputs.changed != '0'
-      shell: bash
-      working-directory: ${{ inputs.workdir }}
-      env:
-        MIN_DAYS: ${{ inputs.minimum-age-days }}
-        WARN_ONLY: ${{ inputs.warn-only }}
-      run: |
-        set -e
-        node "$GITHUB_ACTION_PATH/dist/check-age.js" changed.json "$MIN_DAYS" "$WARN_ONLY" || exit $?
-
-    - name: Count age violations (best-effort)
-      id: age_count
-      if: steps.review.outputs.changed != '0'
-      shell: bash
-      run: |
-        echo "count=0" >> "$GITHUB_OUTPUT" || true
 
     - name: Count malware hits (best-effort)
       id: adv_count
@@ -253,6 +229,5 @@ runs:
       shell: bash
       run: |
         echo "Changed deps: ${{ steps.review.outputs.changed }}"
-        echo "Age violations (best-effort): ${{ steps.age_count.outputs.count }}"
         echo "Malware hits (GitHub Advisory): ${{ steps.review.outputs.malware_hits }}"
         echo "GuardDog findings (best-effort): ${{ steps.guarddog_count.outputs.count }}"

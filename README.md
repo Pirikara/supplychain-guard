@@ -11,7 +11,6 @@ This action is designed to be used in a CI/CD pipeline, typically on pull reques
 - **Multi-Ecosystem Support**: Works with JavaScript/TypeScript, Python, Rust, Go, Ruby, and PHP projects automatically
 - **Dependency Review**: Uses GitHub's native Dependency Review API to identify changed dependencies and vulnerabilities with pagination support for large PRs
 - **Frozen Install**: Verifies lockfile integrity across multiple ecosystems with appropriate commands for each package manager
-- **Minimum Release Age**: Checks if new/updated packages have been published for a minimum number of days, helping to avoid recently published malicious packages
 - **GitHub Advisory Integration**: Automatically scans for known malware and vulnerabilities in changed dependencies using GitHub's Advisory Database
 - **OSSF Malicious Packages Check**: Cross-references dependency names against the [OSSF malicious-packages](https://github.com/ossf/malicious-packages) repository
 - **GuardDog Heuristics (Optional)**: Runs [GuardDog](https://github.com/DataDog/guarddog) via pip install for heuristic analysis on npm packages
@@ -59,8 +58,6 @@ jobs:
         with:
           # Optional: default is 'true'. Set to 'false' to allow lifecycle scripts.
           ignore-scripts: 'true'
-          # Optional: default is 7. Minimum age in days for a new package version.
-          minimum-age-days: 7
           # Optional: default is 'true'. Set to 'false' to disable OSSF check.
           enable-ossf: 'true'
           # Optional: default is 'false'. Set to 'true' to enable GuardDog scan (npm only).
@@ -76,12 +73,11 @@ jobs:
 | Name                 | Description                                                                              | Default                                                                                      |
 | -------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `ignore-scripts`     | Disable lifecycle scripts during install across all supported ecosystems.                | `true`                                                                                       |
-| `minimum-age-days`   | Minimum release age (in days) for newly added/updated dependencies.                      | `7`                                                                                          |
 | `enable-ossf`        | If `true`, checks against the OpenSSF malicious-packages list.                           | `true`                                                                                       |
 | `enable-guarddog`    | If `true`, runs GuardDog via pip install for heuristic analysis (npm packages only).     | `false`                                                                                      |
 | `guarddog-rules`     | Space-separated list of GuardDog rules to apply.                                         | `typosquatting npm-install-script npm-obfuscation npm-silent-process-execution direct_url_dependency` |
 | `guarddog-fail`      | If `true`, the job will fail if GuardDog finds any issues.                               | `false`                                                                                      |
-| `warn-only`          | If `true`, security findings (age, ossf, guarddog) will only produce warnings, not fail the job. | `true`                                                                                       |
+| `warn-only`          | If `true`, security findings (ossf, guarddog) will only produce warnings, not fail the job. | `true`                                                                                       |
 | `workdir`            | The working directory where package files are located (supports monorepos).              | `.`                                                                                          |
 
 ## Outputs
@@ -89,7 +85,6 @@ jobs:
 | Name                       | Description                                           |
 | -------------------------- | ----------------------------------------------------- |
 | `changed-count`            | The number of added or updated dependencies across all ecosystems. |
-| `age-violations-count`     | The number of dependencies violating the minimum age requirement. |
 | `malware-hits-count`       | The number of dependencies with malware advisories from GitHub. |
 | `guarddog-findings-count`  | The number of findings reported by GuardDog (npm only). |
 
@@ -149,7 +144,7 @@ jobs:
         uses: ./.github/actions/supplychain-guard
         with:
           workdir: './backend'
-          minimum-age-days: 14
+          enable-ossf: 'true'
 ```
 
 ## License
