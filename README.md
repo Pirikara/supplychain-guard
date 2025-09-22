@@ -75,7 +75,6 @@ jobs:
 | `ignore-scripts`     | Disable lifecycle scripts during install across all supported ecosystems.                | `true`                                                                                       |
 | `enable-ossf`        | If `true`, checks against the OpenSSF malicious-packages list.                           | `true`                                                                                       |
 | `enable-guarddog`    | If `true`, runs GuardDog via pip install for heuristic analysis (npm, PyPI, Go, GitHub Actions). | `false`                                                                                      |
-| `guarddog-rules`     | Space-separated list of GuardDog rules to apply.                                         | `typosquatting npm-install-script npm-obfuscation npm-silent-process-execution direct_url_dependency` |
 | `guarddog-fail`      | If `true`, the job will fail if GuardDog finds any issues.                               | `false`                                                                                      |
 | `warn-only`          | If `true`, security findings (ossf, guarddog) will only produce warnings, not fail the job. | `true`                                                                                       |
 | `workdir`            | The working directory where package files are located (supports monorepos).              | `.`                                                                                          |
