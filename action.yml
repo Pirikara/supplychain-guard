@@ -201,7 +201,7 @@ runs:
         fi
 
         docker run --rm ghcr.io/datadog/guarddog \
-          guarddog npm scan $pkgs \
+          npm scan $pkgs \
           --rules "${{ inputs.guarddog-rules }}" \
           --output-format json > guarddog.json || true
 
