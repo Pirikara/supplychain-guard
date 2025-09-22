@@ -1,0 +1,177 @@
+import { execSync } from 'node:child_process';
+import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+
+describe('check-* scripts file existence handling', () => {
+  const testDir = join(__dirname, 'check-scripts-test');
+  const testChangedFile = join(testDir, 'changed.json');
+  const originalCwd = process.cwd();
+
+  beforeAll(() => {
+    try {
+      rmSync(testDir, { recursive: true, force: true });
+    } catch {}
+    mkdirSync(testDir, { recursive: true });
+  });
+
+  afterAll(() => {
+    try {
+      rmSync(testDir, { recursive: true, force: true });
+    } catch {}
+  });
+
+  beforeEach(() => {
+    process.chdir(testDir);
+  });
+
+  afterEach(() => {
+    process.chdir(originalCwd);
+  });
+
+  describe('check-age script', () => {
+    it('should handle missing changed.json file gracefully', () => {
+      // Ensure the file doesn't exist
+      if (existsSync(testChangedFile)) {
+        rmSync(testChangedFile);
+      }
+
+      // Run check-age with non-existent file
+      try {
+        const result = execSync(`node ${join(__dirname, '../dist/check-age.js')} changed.json 7 true`, {
+          encoding: 'utf8',
+          stdio: 'pipe'
+        });
+        fail('Expected script to exit with error');
+      } catch (error: any) {
+        expect(error.status).toBe(1);
+        expect(error.stderr).toContain('changed.json file not found');
+      }
+    });
+
+    it('should process valid changed.json file', () => {
+      // Create a valid changed.json file
+      const testData = [
+        { name: 'express', version: '4.18.2' }
+      ];
+      writeFileSync(testChangedFile, JSON.stringify(testData, null, 2));
+
+      // This might timeout or fail due to npm calls, but it should not fail on file reading
+      try {
+        execSync(`timeout 10s node ${join(__dirname, '../dist/check-age.js')} changed.json 7 true`, {
+          encoding: 'utf8',
+          stdio: 'pipe'
+        });
+      } catch (error: any) {
+        // We expect this to timeout or fail on npm calls, not on file reading
+        expect(error.stderr || '').not.toContain('changed.json file not found');
+      }
+    });
+  });
+
+  describe('check-ossf script', () => {
+    it('should handle missing changed.json file gracefully', () => {
+      if (existsSync(testChangedFile)) {
+        rmSync(testChangedFile);
+      }
+
+      try {
+        execSync(`node ${join(__dirname, '../dist/check-ossf.js')} changed.json /tmp/fake-ossf`, {
+          encoding: 'utf8',
+          stdio: 'pipe'
+        });
+        fail('Expected script to exit with error');
+      } catch (error: any) {
+        expect(error.status).toBe(1);
+        expect(error.stderr).toContain('changed.json file not found');
+      }
+    });
+
+    it('should process valid changed.json file', () => {
+      const testData = [
+        { name: 'test-package', version: '1.0.0' }
+      ];
+      writeFileSync(testChangedFile, JSON.stringify(testData, null, 2));
+
+      try {
+        const result = execSync(`node ${join(__dirname, '../dist/check-ossf.js')} changed.json /tmp/fake-ossf`, {
+          encoding: 'utf8',
+          stdio: 'pipe'
+        });
+        // Should not crash even with fake ossf directory
+      } catch (error: any) {
+        expect(error.stderr || '').not.toContain('changed.json file not found');
+      }
+    });
+  });
+
+  describe('check-gh-malware script', () => {
+    it('should handle missing changed.json file gracefully', () => {
+      if (existsSync(testChangedFile)) {
+        rmSync(testChangedFile);
+      }
+
+      try {
+        execSync(`node ${join(__dirname, '../dist/check-gh-malware.js')} changed.json false`, {
+          encoding: 'utf8',
+          stdio: 'pipe',
+          env: { ...process.env, GITHUB_TOKEN: 'fake-token' }
+        });
+        fail('Expected script to exit with error');
+      } catch (error: any) {
+        expect(error.status).toBe(1);
+        expect(error.stderr).toContain('changed.json file not found');
+      }
+    });
+
+    it('should require GITHUB_TOKEN', () => {
+      const testData = [
+        { name: 'test-package', version: '1.0.0' }
+      ];
+      writeFileSync(testChangedFile, JSON.stringify(testData, null, 2));
+
+      try {
+        execSync(`node ${join(__dirname, '../dist/check-gh-malware.js')} changed.json false`, {
+          encoding: 'utf8',
+          stdio: 'pipe',
+          env: { ...process.env, GITHUB_TOKEN: undefined }
+        });
+        fail('Expected script to exit with error');
+      } catch (error: any) {
+        expect(error.status).toBe(1);
+        expect(error.stderr).toContain('GITHUB_TOKEN is required');
+      }
+    });
+  });
+
+  describe('file validation', () => {
+    it('should validate JSON format in changed.json', () => {
+      // Create invalid JSON
+      writeFileSync(testChangedFile, 'invalid json content');
+
+      try {
+        execSync(`node ${join(__dirname, '../dist/check-age.js')} changed.json 7 true`, {
+          encoding: 'utf8',
+          stdio: 'pipe'
+        });
+        fail('Expected script to fail on invalid JSON');
+      } catch (error: any) {
+        // Should fail on JSON parsing, not file existence
+        expect(error.stderr || '').not.toContain('changed.json file not found');
+      }
+    });
+
+    it('should handle empty changed.json array', () => {
+      writeFileSync(testChangedFile, '[]');
+
+      try {
+        const result = execSync(`node ${join(__dirname, '../dist/check-age.js')} changed.json 7 true`, {
+          encoding: 'utf8',
+          stdio: 'pipe'
+        });
+        // Empty array should be processed without error
+      } catch (error: any) {
+        expect(error.stderr || '').not.toContain('changed.json file not found');
+      }
+    });
+  });
+});

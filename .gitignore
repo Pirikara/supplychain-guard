@@ -4,5 +4,10 @@ lib/
 out/
 *.tsbuildinfo
 
+# Test artifacts
+coverage/
+tests/test-repo/
+tests/check-scripts-test/
+
 .env
 .DS_Store
