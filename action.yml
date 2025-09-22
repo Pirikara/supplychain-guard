@@ -27,8 +27,8 @@ inputs:
     default: "false"
 
   guarddog-rules:
-    description: "GuardDog rules CSV"
-    default: "typosquat,suspicious_install_scripts,network_download,obfuscation"
+    description: "GuardDog rules (space-separated)"
+    default: "typosquatting npm-install-script npm-obfuscation npm-silent-process-execution direct_url_dependency"
 
   guarddog-fail:
     description: "Fail the job when GuardDog finds findings (>0)"
@@ -194,16 +194,37 @@ runs:
       working-directory: ${{ inputs.workdir }}
       run: |
         set -euo pipefail
-        pkgs=$(jq -r '.[].name' changed.json | sort -u | tr '\n' ' ')
-        if [ -z "$pkgs" ]; then
+        pkg_count=$(jq 'length' changed.json 2>/dev/null || echo 0)
+        if [ "$pkg_count" = "0" ]; then
           echo "No changed packages -> skip guarddog"
           exit 0
         fi
 
-        docker run --rm ghcr.io/datadog/guarddog \
-          npm scan $pkgs \
-          --rules "${{ inputs.guarddog-rules }}" \
-          --output-format json > guarddog.json || true
+        # Convert space-separated rules to --rules flags
+        rules_flags=""
+        for rule in ${{ inputs.guarddog-rules }}; do
+          rules_flags="$rules_flags --rules $rule"
+        done
+
+        # Initialize output file
+        echo "[]" > guarddog.json
+
+        # Scan each package individually with its version
+        jq -r '.[] | "\(.name) \(.version)"' changed.json | while read -r pkg_name pkg_version; do
+          echo "Scanning $pkg_name@$pkg_version..."
+          temp_output=$(mktemp)
+
+          docker run --rm ghcr.io/datadog/guarddog \
+            npm scan "$pkg_name" --version "$pkg_version" $rules_flags \
+            --output-format json > "$temp_output" 2>/dev/null || true
+
+          # Merge results into main output file
+          if [ -s "$temp_output" ]; then
+            jq -s '.[0] + .[1]' guarddog.json "$temp_output" > guarddog.json.tmp
+            mv guarddog.json.tmp guarddog.json
+          fi
+          rm -f "$temp_output"
+        done
 
         if [ -s guarddog.json ]; then
           total=$(jq 'length' guarddog.json 2>/dev/null || echo 0)
