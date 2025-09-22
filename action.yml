@@ -103,12 +103,18 @@ runs:
           fi
         fi
 
-        if $is_berry || [ -f yarn.lock ] && command -v yarn >/dev/null 2>&1 && ! yarn --version | grep -q '^1\.'; then
+        if $is_berry; then
           echo 'checksumBehavior: "throw"' >> .yarnrc.yml
           if [ "${{ inputs.ignore-scripts }}" = "true" ]; then
             YARN_ENABLE_SCRIPTS=false yarn install --immutable --inline-builds
           else
             yarn install --immutable --inline-builds
+          fi
+        elif [ -f yarn.lock ] && command -v yarn >/dev/null 2>&1; then
+          if [ "${{ inputs.ignore-scripts }}" = "true" ]; then
+            yarn install --frozen-lockfile --ignore-scripts
+          else
+            yarn install --frozen-lockfile
           fi
         elif [ -f pnpm-lock.yaml ] || printf "%s" "$pkgmgr" | grep -q '^pnpm@'; then
           if ! command -v pnpm >/dev/null 2>&1; then corepack prepare pnpm@latest --activate || true; fi
