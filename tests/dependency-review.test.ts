@@ -177,10 +177,16 @@ describe("dependency-review", () => {
             encoding: "utf8",
             stdio: "pipe",
             env: {
-              ...process.env,
-              GITHUB_TOKEN: "fake-token",
+              ...process.env, // Keep system environment for node/npm execution
+              // Set minimal GitHub environment to ensure no API calls
+              GITHUB_TOKEN: "fake-token-no-api-calls",
               GITHUB_REPOSITORY: "owner/repo",
-              // No GITHUB_EVENT_PATH to force early failure
+              // Explicitly unset GitHub environment variables to force early failure
+              // This prevents any actual API calls to GitHub
+              GITHUB_EVENT_PATH: undefined,
+              GITHUB_BASE_REF: undefined,
+              GITHUB_SHA: undefined,
+              GITHUB_HEAD_REF: undefined,
             },
           },
         );
@@ -197,7 +203,7 @@ describe("dependency-review", () => {
         expect(stdout).not.toContain('"name":'); // No JSON properties in stdout
         expect(stdout).not.toContain('"ecosystem":'); // No ecosystem field in stdout
 
-        // Verify it fails for the right reason (missing environment)
+        // Verify it fails for the right reason (missing environment, no API calls made)
         expect(error.stderr).toContain("Could not determine base commit SHA");
       }
     });
@@ -213,10 +219,16 @@ describe("dependency-review", () => {
             encoding: "utf8",
             stdio: "pipe",
             env: {
-              ...process.env,
+              ...process.env, // Keep system environment for node/npm execution
+              // Set minimal GitHub environment to ensure no API calls
               GITHUB_TOKEN: "fake-token",
               GITHUB_REPOSITORY: "owner/repo",
-              // Missing GITHUB_EVENT_PATH will cause early failure
+              // Missing all GitHub environment variables will cause early failure
+              // This ensures no actual GitHub API calls are made during testing
+              GITHUB_EVENT_PATH: "",
+              GITHUB_BASE_REF: "",
+              GITHUB_SHA: "",
+              GITHUB_HEAD_REF: "",
             },
           },
         );
