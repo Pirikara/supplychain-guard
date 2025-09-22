@@ -168,29 +168,29 @@ describe('frozen-install', () => {
   });
 
   describe('ignore-scripts parameter', () => {
-    it('should pass ignore-scripts parameter correctly', () => {
+    it('should always ignore scripts regardless of input (legacy compatibility)', () => {
       writeFileSync('package.json', '{"name": "test", "scripts": {"postinstall": "echo harmful"}}');
 
       try {
-        execSync(`node ${join(__dirname, '../dist/frozen-install.js')} . true`, {
+        execSync(`node ${join(__dirname, '../dist/frozen-install.js')} .`, {
           encoding: 'utf8',
           stdio: 'pipe'
         });
       } catch (error: any) {
-        expect(error.stdout).toContain('Ignore scripts: true');
+        expect(error.stdout).toContain('Ignore scripts: true (hardcoded for security)');
       }
     });
 
-    it('should handle ignore-scripts false parameter', () => {
+    it('should always use ignore-scripts true (hardcoded for security)', () => {
       writeFileSync('package.json', '{"name": "test"}');
 
       try {
-        execSync(`node ${join(__dirname, '../dist/frozen-install.js')} . false`, {
+        execSync(`node ${join(__dirname, '../dist/frozen-install.js')} .`, {
           encoding: 'utf8',
           stdio: 'pipe'
         });
       } catch (error: any) {
-        expect(error.stdout).toContain('Ignore scripts: false');
+        expect(error.stdout).toContain('Ignore scripts: true (hardcoded for security)');
       }
     });
   });

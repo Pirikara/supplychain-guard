@@ -6,11 +6,6 @@ branding:
   icon: shield
 
 inputs:
-  ignore-scripts:
-    description: "Disable lifecycle scripts during install (npm/pnpm/bun use --ignore-scripts, Yarn Berry uses env)"
-    default: "true"
-
-
   enable-ossf:
     description: "Check against OpenSSF malicious-packages (warn)"
     default: "true"
@@ -76,7 +71,7 @@ runs:
       run: |
         set -e
         echo "Running multi-ecosystem frozen install check..."
-        node "$GITHUB_ACTION_PATH/dist/frozen-install.js" "${{ inputs.workdir }}" "${{ inputs.ignore-scripts }}"
+        node "$GITHUB_ACTION_PATH/dist/frozen-install.js" "${{ inputs.workdir }}"
 
     - name: Dependency Review (unified check)
       id: review

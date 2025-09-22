@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 interface EcosystemHandler {
   name: string;
   detect(): boolean;
-  validate(ignoreScripts: boolean): Promise<boolean>;
+  validate(): Promise<boolean>;
 }
 
 class NodeEcosystem implements EcosystemHandler {
@@ -14,7 +14,7 @@ class NodeEcosystem implements EcosystemHandler {
     return existsSync("package.json");
   }
 
-  async validate(ignoreScripts: boolean): Promise<boolean> {
+  async validate(): Promise<boolean> {
     try {
       // Check package.json for packageManager field
       let pkgManager = "";
@@ -31,16 +31,10 @@ class NodeEcosystem implements EcosystemHandler {
       if (isBerry) {
         console.log("Detected Yarn Berry, performing frozen install...");
         execSync('echo \'checksumBehavior: "throw"\' >> .yarnrc.yml', { stdio: 'inherit' });
-        const cmd = ignoreScripts
-          ? "YARN_ENABLE_SCRIPTS=false yarn install --immutable --inline-builds"
-          : "yarn install --immutable --inline-builds";
-        execSync(cmd, { stdio: 'inherit' });
+        execSync("YARN_ENABLE_SCRIPTS=false yarn install --immutable --inline-builds", { stdio: 'inherit' });
       } else if (existsSync("yarn.lock")) {
         console.log("Detected Yarn Classic, performing frozen install...");
-        const cmd = ignoreScripts
-          ? "yarn install --frozen-lockfile --ignore-scripts"
-          : "yarn install --frozen-lockfile";
-        execSync(cmd, { stdio: 'inherit' });
+        execSync("yarn install --frozen-lockfile --ignore-scripts", { stdio: 'inherit' });
       } else if (existsSync("pnpm-lock.yaml") || pkgManager.startsWith("pnpm@")) {
         console.log("Detected pnpm, performing frozen install...");
         // Ensure pnpm is available
@@ -49,22 +43,13 @@ class NodeEcosystem implements EcosystemHandler {
         } catch {
           execSync("corepack prepare pnpm@latest --activate", { stdio: 'inherit' });
         }
-        const cmd = ignoreScripts
-          ? "pnpm install --frozen-lockfile --ignore-scripts"
-          : "pnpm install --frozen-lockfile";
-        execSync(cmd, { stdio: 'inherit' });
+        execSync("pnpm install --frozen-lockfile --ignore-scripts", { stdio: 'inherit' });
       } else if (existsSync("package-lock.json")) {
         console.log("Detected npm, performing frozen install...");
-        const cmd = ignoreScripts
-          ? "npm ci --ignore-scripts"
-          : "npm ci";
-        execSync(cmd, { stdio: 'inherit' });
+        execSync("npm ci --ignore-scripts", { stdio: 'inherit' });
       } else {
         console.warn("No lockfile found for Node.js project, falling back to npm ci");
-        const cmd = ignoreScripts
-          ? "npm ci --ignore-scripts"
-          : "npm ci";
-        execSync(cmd, { stdio: 'inherit' });
+        execSync("npm ci --ignore-scripts", { stdio: 'inherit' });
       }
 
       return true;
@@ -94,35 +79,24 @@ class PythonEcosystem implements EcosystemHandler {
            existsSync("pyproject.toml");
   }
 
-  async validate(_ignoreScripts: boolean): Promise<boolean> {
+  async validate(): Promise<boolean> {
     try {
       if (existsSync("poetry.lock")) {
         console.log("Detected Poetry, validating lockfile integrity...");
         execSync("poetry check --lock", { stdio: 'inherit' });
 
-        if (!_ignoreScripts) {
-          execSync("poetry install --no-dev", { stdio: 'inherit' });
-        } else {
-          console.log("Skipping Poetry install due to ignore-scripts flag");
-        }
+        console.log("Skipping Poetry install due to ignore-scripts (hardcoded for security)");
       } else if (existsSync("Pipfile.lock")) {
         console.log("Detected Pipenv, validating lockfile integrity...");
         execSync("pipenv verify", { stdio: 'inherit' });
 
-        if (!_ignoreScripts) {
-          execSync("pipenv install --deploy", { stdio: 'inherit' });
-        } else {
-          console.log("Skipping Pipenv install due to ignore-scripts flag");
-        }
+        console.log("Skipping Pipenv install due to ignore-scripts (hardcoded for security)");
       } else if (existsSync("requirements.txt")) {
         console.log("Detected pip requirements, performing dry-run validation...");
         // Use --dry-run to validate without actually installing
         execSync("pip install -r requirements.txt --dry-run", { stdio: 'inherit' });
 
-        if (!_ignoreScripts) {
-          console.log("Installing requirements (no lockfile integrity check available)");
-          execSync("pip install -r requirements.txt", { stdio: 'inherit' });
-        }
+        console.log("Skipping pip install due to ignore-scripts (hardcoded for security)");
       }
 
       return true;
@@ -140,7 +114,7 @@ class RustEcosystem implements EcosystemHandler {
     return existsSync("Cargo.toml");
   }
 
-  async validate(_ignoreScripts: boolean): Promise<boolean> {
+  async validate(): Promise<boolean> {
     try {
       if (existsSync("Cargo.lock")) {
         console.log("Detected Rust project with Cargo.lock, validating...");
@@ -165,7 +139,7 @@ class GoEcosystem implements EcosystemHandler {
     return existsSync("go.mod");
   }
 
-  async validate(_ignoreScripts: boolean): Promise<boolean> {
+  async validate(): Promise<boolean> {
     try {
       console.log("Detected Go project, validating go.mod and go.sum...");
 
@@ -190,14 +164,11 @@ class RubyEcosystem implements EcosystemHandler {
     return existsSync("Gemfile");
   }
 
-  async validate(ignoreScripts: boolean): Promise<boolean> {
+  async validate(): Promise<boolean> {
     try {
       if (existsSync("Gemfile.lock")) {
         console.log("Detected Ruby project with Gemfile.lock, performing frozen install...");
-        const cmd = ignoreScripts
-          ? "bundle install --deployment --without development test"
-          : "bundle install --deployment";
-        execSync(cmd, { stdio: 'inherit' });
+        execSync("bundle install --deployment --without development test", { stdio: 'inherit' });
       } else {
         console.log("Detected Ruby project without Gemfile.lock, performing bundle install...");
         execSync("bundle install", { stdio: 'inherit' });
@@ -218,20 +189,14 @@ class PHPEcosystem implements EcosystemHandler {
     return existsSync("composer.json");
   }
 
-  async validate(ignoreScripts: boolean): Promise<boolean> {
+  async validate(): Promise<boolean> {
     try {
       if (existsSync("composer.lock")) {
         console.log("Detected PHP project with composer.lock, performing frozen install...");
-        const cmd = ignoreScripts
-          ? "composer install --no-dev --no-scripts"
-          : "composer install --no-dev";
-        execSync(cmd, { stdio: 'inherit' });
+        execSync("composer install --no-dev --no-scripts", { stdio: 'inherit' });
       } else {
         console.log("Detected PHP project without composer.lock, performing composer install...");
-        const cmd = ignoreScripts
-          ? "composer install --no-scripts"
-          : "composer install";
-        execSync(cmd, { stdio: 'inherit' });
+        execSync("composer install --no-scripts", { stdio: 'inherit' });
       }
 
       return true;
@@ -244,10 +209,8 @@ class PHPEcosystem implements EcosystemHandler {
 
 async function main() {
   const workdir = process.argv[2] || ".";
-  const ignoreScripts = (process.argv[3] || "true") === "true";
-
   console.log(`Running frozen install check in directory: ${workdir}`);
-  console.log(`Ignore scripts: ${ignoreScripts}`);
+  console.log(`Ignore scripts: true (hardcoded for security)`);
 
   // Change to working directory
   if (workdir !== ".") {
@@ -276,7 +239,7 @@ async function main() {
 
   for (const ecosystem of detectedEcosystems) {
     console.log(`\n=== Validating ${ecosystem.name} ===`);
-    const success = await ecosystem.validate(ignoreScripts);
+    const success = await ecosystem.validate();
 
     if (success) {
       console.log(`✅ ${ecosystem.name} validation succeeded`);

@@ -56,8 +56,6 @@ jobs:
       - name: Run Supply Chain Guard
         uses: ./.github/actions/supplychain-guard
         with:
-          # Optional: default is 'true'. Set to 'false' to allow lifecycle scripts.
-          ignore-scripts: 'true'
           # Optional: default is 'true'. Set to 'false' to disable OSSF check.
           enable-ossf: 'true'
           # Optional: default is 'false'. Set to 'true' to enable GuardDog scan (npm, PyPI, Go, GitHub Actions).
@@ -72,7 +70,6 @@ jobs:
 
 | Name                 | Description                                                                              | Default                                                                                      |
 | -------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `ignore-scripts`     | Disable lifecycle scripts during install across all supported ecosystems.                | `true`                                                                                       |
 | `enable-ossf`        | If `true`, checks against the OpenSSF malicious-packages list.                           | `true`                                                                                       |
 | `enable-guarddog`    | If `true`, runs GuardDog via pip install for heuristic analysis (npm, PyPI, Go, GitHub Actions). | `false`                                                                                      |
 | `guarddog-fail`      | If `true`, the job will fail if GuardDog finds any issues.                               | `false`                                                                                      |
@@ -124,7 +121,6 @@ jobs:
         uses: ./.github/actions/supplychain-guard
         with:
           workdir: './frontend'
-          ignore-scripts: 'true'
           enable-guarddog: 'true'
 
   backend:
