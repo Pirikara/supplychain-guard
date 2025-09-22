@@ -80,62 +80,15 @@ runs:
         test -f "$GITHUB_ACTION_PATH/dist/dependency-review.js" || { echo "::error::dist/dependency-review.js not found (build & commit dist)"; exit 1; }
         test -f "$GITHUB_ACTION_PATH/dist/check-age.js" || { echo "::error::dist/check-age.js not found (build & commit dist)"; exit 1; }
         test -f "$GITHUB_ACTION_PATH/dist/check-ossf.js" || { echo "::error::dist/check-ossf.js not found (build & commit dist)"; exit 1; }
+        test -f "$GITHUB_ACTION_PATH/dist/frozen-install.js" || { echo "::error::dist/frozen-install.js not found (build & commit dist)"; exit 1; }
 
     - name: Frozen install (lock/integrity check)
       shell: bash
       working-directory: ${{ inputs.workdir }}
       run: |
-        set -euo pipefail
-
-        if ! command -v jq >/dev/null 2>&1; then
-          sudo apt-get update -y && sudo apt-get install -y jq
-        fi
-
-        pkgmgr=$(jq -r '.packageManager // empty' package.json 2>/dev/null || true)
-
-        is_berry=false
-        if [ -n "$pkgmgr" ] && printf "%s" "$pkgmgr" | grep -q '^yarn@'; then
-          if command -v yarn >/dev/null 2>&1; then
-            if ! yarn --version | grep -q '^1\.'; then
-              is_berry=true
-            fi
-          fi
-        fi
-
-        if $is_berry; then
-          echo 'checksumBehavior: "throw"' >> .yarnrc.yml
-          if [ "${{ inputs.ignore-scripts }}" = "true" ]; then
-            YARN_ENABLE_SCRIPTS=false yarn install --immutable --inline-builds
-          else
-            yarn install --immutable --inline-builds
-          fi
-        elif [ -f yarn.lock ] && command -v yarn >/dev/null 2>&1; then
-          if [ "${{ inputs.ignore-scripts }}" = "true" ]; then
-            yarn install --frozen-lockfile --ignore-scripts
-          else
-            yarn install --frozen-lockfile
-          fi
-        elif [ -f pnpm-lock.yaml ] || printf "%s" "$pkgmgr" | grep -q '^pnpm@'; then
-          if ! command -v pnpm >/dev/null 2>&1; then corepack prepare pnpm@latest --activate || true; fi
-          if [ "${{ inputs.ignore-scripts }}" = "true" ]; then
-            pnpm install --frozen-lockfile --ignore-scripts
-          else
-            pnpm install --frozen-lockfile
-          fi
-        elif [ -f package-lock.json ] || printf "%s" "$pkgmgr" | grep -q '^npm@'; then
-          if [ "${{ inputs.ignore-scripts }}" = "true" ]; then
-            npm ci --ignore-scripts
-          else
-            npm ci
-          fi
-        else
-          echo "::warning::No known lockfile found. Falling back to npm ci."
-          if [ "${{ inputs.ignore-scripts }}" = "true" ]; then
-            npm ci --ignore-scripts
-          else
-            npm ci
-          fi
-        fi
+        set -e
+        echo "Running multi-ecosystem frozen install check..."
+        node "$GITHUB_ACTION_PATH/dist/frozen-install.js" "${{ inputs.workdir }}" "${{ inputs.ignore-scripts }}"
 
     - name: Dependency Review (unified check)
       id: review
