@@ -6,10 +6,6 @@ branding:
   icon: shield
 
 inputs:
-  node-version:
-    description: "Node version for this job (e.g. 'lts/*' or '22' or '24')"
-    default: "lts/*"
-
   ignore-scripts:
     description: "Disable lifecycle scripts during install (npm/pnpm/bun use --ignore-scripts, Yarn Berry uses env)"
     default: "true"
@@ -64,12 +60,13 @@ runs:
       with:
         fetch-depth: 0
 
-    - name: Setup Node
+    - name: Setup Node.js (for action execution)
       uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
       with:
-        node-version: ${{ inputs.node-version }}
+        node-version: '24'
 
     - name: Enable Corepack
+      if: hashFiles('**/package.json') != ''
       shell: bash
       run: corepack enable || true
 

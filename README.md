@@ -75,7 +75,6 @@ jobs:
 
 | Name                 | Description                                                                              | Default                                                                                      |
 | -------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `node-version`       | Node version for the job (e.g., 'lts/*', '22').                                         | `lts/*`                                                                                      |
 | `ignore-scripts`     | Disable lifecycle scripts during install across all supported ecosystems.                | `true`                                                                                       |
 | `minimum-age-days`   | Minimum release age (in days) for newly added/updated dependencies.                      | `7`                                                                                          |
 | `enable-ossf`        | If `true`, checks against the OpenSSF malicious-packages list.                           | `true`                                                                                       |
