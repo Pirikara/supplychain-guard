@@ -98,6 +98,53 @@ describe('check-* scripts file existence handling', () => {
     });
   });
 
+  describe('check-guarddog script', () => {
+    it('should handle missing changed.json file gracefully', () => {
+      if (existsSync(testChangedFile)) {
+        rmSync(testChangedFile);
+      }
+
+      try {
+        execSync(`node ${join(__dirname, '../dist/check-guarddog.js')} changed.json "" false`, {
+          encoding: 'utf8',
+          stdio: 'pipe'
+        });
+        fail('Expected script to exit with error');
+      } catch (error: any) {
+        expect(error.status).toBe(1);
+        expect(error.stderr).toContain('changed.json file not found');
+      }
+    });
+
+    it('should process valid changed.json file with ecosystem field', () => {
+      const testData = [
+        { name: 'test-package', version: '1.0.0', ecosystem: 'npm' }
+      ];
+      writeFileSync(testChangedFile, JSON.stringify(testData, null, 2));
+
+      // Should complete successfully and create guarddog.json
+      const result = execSync(`node ${join(__dirname, '../dist/check-guarddog.js')} changed.json "" false 2>&1`, {
+        encoding: 'utf8',
+        stdio: 'pipe',
+        timeout: 30000
+      });
+
+      expect(result).toContain('Installing GuardDog');
+      expect(existsSync(join(testDir, 'guarddog.json'))).toBe(true);
+    });
+
+    it('should handle empty package list', () => {
+      writeFileSync(testChangedFile, '[]');
+
+      const result = execSync(`node ${join(__dirname, '../dist/check-guarddog.js')} changed.json "" false 2>&1`, {
+        encoding: 'utf8',
+        stdio: 'pipe'
+      });
+
+      expect(result).toContain('No changed packages -> skip guarddog');
+    });
+  });
+
   describe('dependency-review script', () => {
     it('should require GITHUB_TOKEN', () => {
       try {
