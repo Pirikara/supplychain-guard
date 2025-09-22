@@ -37,7 +37,30 @@ function fromPackageLock(json: string): Map<string, string> {
   const j = JSON.parse(json);
   const pkgs = j.packages || {};
   for (const [k, v] of Object.entries<any>(pkgs)) {
-    if (k.startsWith("node_modules/")) map.set(k.slice("node_modules/".length), v.version);
+    if (k.startsWith("node_modules/")) {
+      // Extract actual package name from nested paths
+      // "node_modules/cliui/node_modules/ansi-regex" -> "ansi-regex"
+      // "node_modules/@scope/package" -> "@scope/package"
+      const pathParts = k.split("/");
+      let packageName = "";
+
+      // Find the last "node_modules" and get the package name after it
+      for (let i = pathParts.length - 1; i >= 0; i--) {
+        if (pathParts[i] === "node_modules" && i + 1 < pathParts.length) {
+          // Handle scoped packages (@scope/package)
+          if (pathParts[i + 1].startsWith("@") && i + 2 < pathParts.length) {
+            packageName = `${pathParts[i + 1]}/${pathParts[i + 2]}`;
+          } else {
+            packageName = pathParts[i + 1];
+          }
+          break;
+        }
+      }
+
+      if (packageName) {
+        map.set(packageName, v.version);
+      }
+    }
   }
   return map;
 }
@@ -48,12 +71,27 @@ function fromYarnLock(text: string): Map<string, string> {
   const lines = text.split(/\r?\n/);
   let current: string | null = null;
   for (const line of lines) {
-    if (/^".+@|^[^"\s].+@/.test(line)) {
-      const key = line.replace(/:$/, "").trim().replace(/^"+|"+$/g, "");
-      // "@scope/name@^x" または "name@^x"
-      const at = key.lastIndexOf("@");
-      const name = key.startsWith("@") ? key.slice(0, at) : key.slice(0, at);
-      current = name;
+    // Match yarn.lock package key lines like: "package@version", "@scope/package@version":
+    if (/^["\s]*(.+@.+)["\s]*:/.test(line)) {
+      const match = line.match(/^["\s]*(.+@.+?)["\s]*:/);
+      if (match) {
+        const keys = match[1].split(/",\s*"/); // Handle multiple keys
+        // Take the first key and extract package name
+        const firstKey = keys[0].replace(/^"/, '');
+        const at = firstKey.lastIndexOf("@");
+        if (at > 0) {
+          let name = firstKey.slice(0, at);
+          // Handle scoped packages properly
+          if (name.startsWith("@")) {
+            // For @scope/package@version, find the second @ if exists
+            const parts = firstKey.split("@");
+            if (parts.length >= 3) {
+              name = `@${parts[1]}`;
+            }
+          }
+          current = name;
+        }
+      }
     } else if (current && line.trim().startsWith('version "')) {
       const m = line.trim().match(/^version "([^"]+)"/);
       if (m) map.set(current, m[1]);
@@ -65,10 +103,23 @@ function fromYarnLock(text: string): Map<string, string> {
 
 function fromPnpmLock(text: string): Map<string, string> {
   const map = new Map<string, string>();
-  const re = /^ {2}\/(@?[^/]+)\/([^:]+):/; // "  /name/1.2.3:" の行
+  // Match patterns like:
+  // '  @babel/core@7.28.4:' (modern pnpm)
+  // '  /@babel/core/7.28.4:' (older pnpm)
   for (const line of text.split(/\r?\n/)) {
-    const m = line.match(re);
-    if (m) map.set(m[1], m[2]);
+    // Modern format: '  packagename@version:'
+    let match = line.match(/^  ([^@\s]+(?:@[^@\s]+)?(?:\/[^@\s]+)?)@([^:]+):/);
+    if (match) {
+      map.set(match[1], match[2]);
+      continue;
+    }
+
+    // Legacy format: '  /packagename/version:'
+    match = line.match(/^  \/(@?[^/]+(?:\/[^/]+)?)\/([^:]+):/);
+    if (match) {
+      map.set(match[1], match[2]);
+      continue;
+    }
   }
   return map;
 }
