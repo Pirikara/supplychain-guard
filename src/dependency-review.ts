@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 
 type DependencyChange = {
   name: string;
@@ -195,11 +195,14 @@ async function checkMalwareVulnerabilities(
       ecosystem: change.ecosystem,
     }));
 
-    // Write changed dependencies
-    process.stdout.write(JSON.stringify(changedDeps, null, 2));
+    // Write changed dependencies to file
+    writeFileSync("changed.json", JSON.stringify(changedDeps, null, 2));
 
     // Check for malware vulnerabilities
     const malwareHits = await checkMalwareVulnerabilities(changes);
+
+    // Write malware hits to file
+    writeFileSync("malware-hits.json", JSON.stringify(malwareHits, null, 2));
 
     if (malwareHits.length > 0) {
       const msg = `Malware vulnerabilities detected:\n${malwareHits

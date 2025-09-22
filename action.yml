@@ -85,7 +85,7 @@ runs:
         echo "Running unified dependency review..."
 
         # Use new unified dependency review that combines dep-diff + malware check
-        node "$GITHUB_ACTION_PATH/dist/dependency-review.js" changed.json malware-hits.json "$WARN_ONLY" > changed.json
+        node "$GITHUB_ACTION_PATH/dist/dependency-review.js" changed.json malware-hits.json "$WARN_ONLY"
 
         count=$(jq 'length' changed.json 2>/dev/null || echo 0)
         malware_count=$(jq 'length' malware-hits.json 2>/dev/null || echo 0)
