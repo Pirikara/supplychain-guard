@@ -1,5 +1,5 @@
-name: "Supply Chain Guard (JS)"
-description: "ni --frozen + (optional) no-scripts + minimumReleaseAge + GH Advisory (malware) + OpenSSF + GuardDog (Docker)"
+name: "Supply Chain Guard"
+description: "Multi-ecosystem frozen install check + GitHub Advisory (malware) + OSSF malicious packages + GuardDog analysis"
 author: "Pirikara"
 branding:
   color: purple
@@ -19,9 +19,6 @@ inputs:
     description: "Run GuardDog npm scan via Docker (heuristics: typo, suspicious install scripts, etc.)"
     default: "false"
 
-  guarddog-rules:
-    description: "GuardDog rules (space-separated)"
-    default: "typosquatting npm-install-script npm-obfuscation npm-silent-process-execution direct_url_dependency"
 
   guarddog-fail:
     description: "Fail the job when GuardDog finds findings (>0)"
@@ -71,6 +68,7 @@ runs:
         test -f "$GITHUB_ACTION_PATH/dist/dependency-review.js" || { echo "::error::dist/dependency-review.js not found (build & commit dist)"; exit 1; }
         test -f "$GITHUB_ACTION_PATH/dist/check-ossf.js" || { echo "::error::dist/check-ossf.js not found (build & commit dist)"; exit 1; }
         test -f "$GITHUB_ACTION_PATH/dist/frozen-install.js" || { echo "::error::dist/frozen-install.js not found (build & commit dist)"; exit 1; }
+        test -f "$GITHUB_ACTION_PATH/dist/check-guarddog.js" || { echo "::error::dist/check-guarddog.js not found (build & commit dist)"; exit 1; }
 
     - name: Frozen install (lock/integrity check)
       shell: bash
@@ -130,88 +128,14 @@ runs:
         git clone --depth=1 https://github.com/ossf/malicious-packages /tmp/ossf
         node "$GITHUB_ACTION_PATH/dist/check-ossf.js" changed.json /tmp/ossf || true
 
-    - name: GuardDog (pip)
+    - name: GuardDog (multi-ecosystem)
       if: steps.review.outputs.changed != '0' && inputs.enable-guarddog == 'true'
       shell: bash
       working-directory: ${{ inputs.workdir }}
       run: |
-        set -euo pipefail
-        pkg_count=$(jq 'length' changed.json 2>/dev/null || echo 0)
-        if [ "$pkg_count" = "0" ]; then
-          echo "No changed packages -> skip guarddog"
-          exit 0
-        fi
-
-        # Install GuardDog via pip for better compatibility with self-hosted runners
-        echo "Installing GuardDog..."
-        python3 -m pip install --quiet guarddog || {
-          echo "::warning::Failed to install GuardDog via pip, skipping scan"
-          echo "[]" > guarddog.json
-          exit 0
-        }
-
-        # Convert space-separated rules to --rules flags
-        rules_flags=""
-        if [ -n "${{ inputs.guarddog-rules }}" ]; then
-          for rule in ${{ inputs.guarddog-rules }}; do
-            rules_flags="$rules_flags --rules $rule"
-          done
-        fi
-
-        # Initialize output file as array
-        echo "[]" > guarddog.json
-
-        # Filter out packages that are typically safe to speed up scanning
-        jq -r '.[] | select(.name | test("^@types/"; "i") | not) | "\(.name) \(.version)"' changed.json > packages_to_scan.txt
-
-        total_packages=$(wc -l < packages_to_scan.txt)
-        if [ "$total_packages" = "0" ]; then
-          echo "No packages to scan after filtering"
-        else
-          echo "Scanning $total_packages packages (filtered out @types/* packages)..."
-
-          # Process packages in parallel (up to 3 concurrent processes)
-          while IFS= read -r pkg_line; do
-            pkg_name=$(echo "$pkg_line" | cut -d' ' -f1)
-            pkg_version=$(echo "$pkg_line" | cut -d' ' -f2)
-
-            (
-              temp_output=$(mktemp)
-              echo "  Scanning $pkg_name@$pkg_version..."
-
-              # Use pip-installed guarddog instead of Docker
-              guarddog npm scan "$pkg_name" --version "$pkg_version" $rules_flags \
-                --output-format json > "$temp_output" 2>/dev/null || true
-
-              # Add result to results if not empty
-              if [ -s "$temp_output" ] && [ "$(jq -r 'length // 0' "$temp_output" 2>/dev/null)" != "0" ]; then
-                # Merge with main results
-                jq -s '.[0] + [.[1]]' guarddog.json "$temp_output" > guarddog.json.tmp 2>/dev/null && mv guarddog.json.tmp guarddog.json || true
-              fi
-              rm -f "$temp_output"
-            ) &
-
-            # Limit concurrent processes to 3
-            while [ $(jobs -r | wc -l) -ge 3 ]; do
-              sleep 0.1
-            done
-          done < packages_to_scan.txt
-
-          # Wait for all background jobs to complete
-          wait
-        fi
-        rm -f packages_to_scan.txt
-
-        if [ -s guarddog.json ]; then
-          total=$(jq 'length' guarddog.json 2>/dev/null || echo 0)
-          echo "GuardDog findings: $total"
-          if [ "$total" != "0" ] && [ "${{ inputs.guarddog-fail }}" = "true" ]; then
-            echo "::error::GuardDog reported $total findings"
-            exit 1
-          fi
-        else
-          echo "GuardDog produced no output."
-        fi
+        set -e
+        echo "Running multi-ecosystem GuardDog scan..."
+        node "$GITHUB_ACTION_PATH/dist/check-guarddog.js" changed.json "${{ inputs.guarddog-fail }}"
 
     - name: Count GuardDog findings (best-effort)
       id: guarddog_count
