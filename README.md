@@ -13,7 +13,7 @@ This action is designed to be used in a CI/CD pipeline, typically on pull reques
 - **Frozen Install**: Verifies lockfile integrity across multiple ecosystems with appropriate commands for each package manager
 - **GitHub Advisory Integration**: Automatically scans for known malware and vulnerabilities in changed dependencies using GitHub's Advisory Database
 - **OSSF Malicious Packages Check**: Cross-references dependency names against the [OSSF malicious-packages](https://github.com/ossf/malicious-packages) repository
-- **GuardDog Heuristics (Optional)**: Runs [GuardDog](https://github.com/DataDog/guarddog) via pip install for heuristic analysis on npm packages
+- **GuardDog Heuristics (Optional)**: Runs [GuardDog](https://github.com/DataDog/guarddog) via pip install for heuristic analysis on npm, PyPI, Go, and GitHub Actions packages
 
 ## Supported Ecosystems
 
@@ -60,7 +60,7 @@ jobs:
           ignore-scripts: 'true'
           # Optional: default is 'true'. Set to 'false' to disable OSSF check.
           enable-ossf: 'true'
-          # Optional: default is 'false'. Set to 'true' to enable GuardDog scan (npm only).
+          # Optional: default is 'false'. Set to 'true' to enable GuardDog scan (npm, PyPI, Go, GitHub Actions).
           enable-guarddog: 'true'
           # Optional: default is 'true'. If 'false', findings will fail the job.
           warn-only: 'false'
@@ -74,7 +74,7 @@ jobs:
 | -------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `ignore-scripts`     | Disable lifecycle scripts during install across all supported ecosystems.                | `true`                                                                                       |
 | `enable-ossf`        | If `true`, checks against the OpenSSF malicious-packages list.                           | `true`                                                                                       |
-| `enable-guarddog`    | If `true`, runs GuardDog via pip install for heuristic analysis (npm packages only).     | `false`                                                                                      |
+| `enable-guarddog`    | If `true`, runs GuardDog via pip install for heuristic analysis (npm, PyPI, Go, GitHub Actions). | `false`                                                                                      |
 | `guarddog-rules`     | Space-separated list of GuardDog rules to apply.                                         | `typosquatting npm-install-script npm-obfuscation npm-silent-process-execution direct_url_dependency` |
 | `guarddog-fail`      | If `true`, the job will fail if GuardDog finds any issues.                               | `false`                                                                                      |
 | `warn-only`          | If `true`, security findings (ossf, guarddog) will only produce warnings, not fail the job. | `true`                                                                                       |
@@ -86,7 +86,7 @@ jobs:
 | -------------------------- | ----------------------------------------------------- |
 | `changed-count`            | The number of added or updated dependencies across all ecosystems. |
 | `malware-hits-count`       | The number of dependencies with malware advisories from GitHub. |
-| `guarddog-findings-count`  | The number of findings reported by GuardDog (npm only). |
+| `guarddog-findings-count`  | The number of findings reported by GuardDog (across all supported ecosystems). |
 
 ## Architecture
 
