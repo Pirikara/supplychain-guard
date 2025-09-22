@@ -1,6 +1,6 @@
 # supplychain-guard
 
-[![ci](https://github.com/tomoyayamashita/supplychain-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/tomoyayamashita/supplychain-guard/actions/workflows/ci.yml)
+[![ci](https://github.com/Pirikara/supplychain-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/Pirikara/supplychain-guard/actions/workflows/ci.yml)
 
 A GitHub Action to guard your JavaScript/TypeScript project's supply chain.
 
