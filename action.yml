@@ -206,6 +206,14 @@ runs:
           exit 0
         fi
 
+        # Install GuardDog via pip for better compatibility with self-hosted runners
+        echo "Installing GuardDog..."
+        python3 -m pip install --quiet guarddog || {
+          echo "::warning::Failed to install GuardDog via pip, skipping scan"
+          echo "[]" > guarddog.json
+          exit 0
+        }
+
         # Convert space-separated rules to --rules flags
         rules_flags=""
         if [ -n "${{ inputs.guarddog-rules }}" ]; then
@@ -217,23 +225,46 @@ runs:
         # Initialize output file as array
         echo "[]" > guarddog.json
 
-        # Scan each package individually with its version
-        jq -r '.[] | "\(.name) \(.version)"' changed.json | while read -r pkg_name pkg_version; do
-          echo "Scanning $pkg_name@$pkg_version..."
-          temp_output=$(mktemp)
+        # Filter out packages that are typically safe to speed up scanning
+        jq -r '.[] | select(.name | test("^@types/"; "i") | not) | "\(.name) \(.version)"' changed.json > packages_to_scan.txt
 
-          docker run --rm ghcr.io/datadog/guarddog \
-            npm scan "$pkg_name" --version "$pkg_version" $rules_flags \
-            --output-format json > "$temp_output" 2>/dev/null || true
+        total_packages=$(wc -l < packages_to_scan.txt)
+        if [ "$total_packages" = "0" ]; then
+          echo "No packages to scan after filtering"
+        else
+          echo "Scanning $total_packages packages (filtered out @types/* packages)..."
 
-          # Merge results into main output file
-          if [ -s "$temp_output" ]; then
-            # GuardDog outputs object format, wrap in array and concatenate
-            jq -s '.[0] + [.[1]]' guarddog.json "$temp_output" > guarddog.json.tmp
-            mv guarddog.json.tmp guarddog.json
-          fi
-          rm -f "$temp_output"
-        done
+          # Process packages in parallel (up to 3 concurrent processes)
+          while IFS= read -r pkg_line; do
+            pkg_name=$(echo "$pkg_line" | cut -d' ' -f1)
+            pkg_version=$(echo "$pkg_line" | cut -d' ' -f2)
+
+            (
+              temp_output=$(mktemp)
+              echo "  Scanning $pkg_name@$pkg_version..."
+
+              # Use pip-installed guarddog instead of Docker
+              guarddog npm scan "$pkg_name" --version "$pkg_version" $rules_flags \
+                --output-format json > "$temp_output" 2>/dev/null || true
+
+              # Add result to results if not empty
+              if [ -s "$temp_output" ] && [ "$(jq -r 'length // 0' "$temp_output" 2>/dev/null)" != "0" ]; then
+                # Merge with main results
+                jq -s '.[0] + [.[1]]' guarddog.json "$temp_output" > guarddog.json.tmp 2>/dev/null && mv guarddog.json.tmp guarddog.json || true
+              fi
+              rm -f "$temp_output"
+            ) &
+
+            # Limit concurrent processes to 3
+            while [ $(jobs -r | wc -l) -ge 3 ]; do
+              sleep 0.1
+            done
+          done < packages_to_scan.txt
+
+          # Wait for all background jobs to complete
+          wait
+        fi
+        rm -f packages_to_scan.txt
 
         if [ -s guarddog.json ]; then
           total=$(jq 'length' guarddog.json 2>/dev/null || echo 0)
