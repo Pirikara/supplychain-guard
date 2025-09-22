@@ -202,11 +202,13 @@ runs:
 
         # Convert space-separated rules to --rules flags
         rules_flags=""
-        for rule in ${{ inputs.guarddog-rules }}; do
-          rules_flags="$rules_flags --rules $rule"
-        done
+        if [ -n "${{ inputs.guarddog-rules }}" ]; then
+          for rule in ${{ inputs.guarddog-rules }}; do
+            rules_flags="$rules_flags --rules $rule"
+          done
+        fi
 
-        # Initialize output file
+        # Initialize output file as array
         echo "[]" > guarddog.json
 
         # Scan each package individually with its version
@@ -220,7 +222,8 @@ runs:
 
           # Merge results into main output file
           if [ -s "$temp_output" ]; then
-            jq -s '.[0] + .[1]' guarddog.json "$temp_output" > guarddog.json.tmp
+            # GuardDog outputs object format, wrap in array and concatenate
+            jq -s '.[0] + [.[1]]' guarddog.json "$temp_output" > guarddog.json.tmp
             mv guarddog.json.tmp guarddog.json
           fi
           rm -f "$temp_output"
