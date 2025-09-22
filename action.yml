@@ -77,9 +77,8 @@ runs:
       shell: bash
       run: |
         set -e
-        test -f "$GITHUB_ACTION_PATH/dist/dep-diff.js" || { echo "::error::dist/dep-diff.js not found (build & commit dist)"; exit 1; }
+        test -f "$GITHUB_ACTION_PATH/dist/dependency-review.js" || { echo "::error::dist/dependency-review.js not found (build & commit dist)"; exit 1; }
         test -f "$GITHUB_ACTION_PATH/dist/check-age.js" || { echo "::error::dist/check-age.js not found (build & commit dist)"; exit 1; }
-        test -f "$GITHUB_ACTION_PATH/dist/check-gh-malware.js" || { echo "::error::dist/check-gh-malware.js not found (build & commit dist)"; exit 1; }
         test -f "$GITHUB_ACTION_PATH/dist/check-ossf.js" || { echo "::error::dist/check-ossf.js not found (build & commit dist)"; exit 1; }
 
     - name: Frozen install (lock/integrity check)
@@ -138,20 +137,36 @@ runs:
           fi
         fi
 
-    - name: Compute changed dependencies
-      id: diff
+    - name: Dependency Review (unified check)
+      id: review
       shell: bash
       working-directory: ${{ inputs.workdir }}
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        WARN_ONLY: ${{ inputs.warn-only }}
       run: |
         set -e
-        node "$GITHUB_ACTION_PATH/dist/dep-diff.js" > changed.json
+        echo "Running unified dependency review..."
+
+        # Use new unified dependency review that combines dep-diff + malware check
+        node "$GITHUB_ACTION_PATH/dist/dependency-review.js" changed.json malware-hits.json "$WARN_ONLY" > changed.json
+
         count=$(jq 'length' changed.json 2>/dev/null || echo 0)
+        malware_count=$(jq 'length' malware-hits.json 2>/dev/null || echo 0)
+
         echo "changed=$count" >> "$GITHUB_OUTPUT"
+        echo "malware_hits=$malware_count" >> "$GITHUB_OUTPUT"
+
         echo "Changed deps: $count"
-        cat changed.json
+        echo "Malware hits: $malware_count"
+
+        if [ -s changed.json ]; then
+          echo "Changed dependencies:"
+          cat changed.json
+        fi
 
     - name: Minimum release age
-      if: steps.diff.outputs.changed != '0'
+      if: steps.review.outputs.changed != '0'
       shell: bash
       working-directory: ${{ inputs.workdir }}
       env:
@@ -163,30 +178,25 @@ runs:
 
     - name: Count age violations (best-effort)
       id: age_count
-      if: steps.diff.outputs.changed != '0'
+      if: steps.review.outputs.changed != '0'
       shell: bash
       run: |
         echo "count=0" >> "$GITHUB_OUTPUT" || true
 
-    - name: GitHub Advisory (malware)
-      if: steps.diff.outputs.changed != '0'
-      shell: bash
-      working-directory: ${{ inputs.workdir }}
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-        WARN_ONLY: "false"
-      run: |
-        set -e
-        node "$GITHUB_ACTION_PATH/dist/check-gh-malware.js" changed.json "$WARN_ONLY"
-
     - name: Count malware hits (best-effort)
       id: adv_count
-      if: steps.diff.outputs.changed != '0'
+      if: steps.review.outputs.changed != '0'
       shell: bash
-      run: echo "count=0" >> "$GITHUB_OUTPUT" || true
+      working-directory: ${{ inputs.workdir }}
+      run: |
+        if [ -f malware-hits.json ]; then
+          echo "count=$(jq 'length' malware-hits.json)" >> "$GITHUB_OUTPUT"
+        else
+          echo "count=0" >> "$GITHUB_OUTPUT"
+        fi
 
     - name: OpenSSF malicious-packages (warn)
-      if: steps.diff.outputs.changed != '0' && inputs.enable-ossf == 'true'
+      if: steps.review.outputs.changed != '0' && inputs.enable-ossf == 'true'
       shell: bash
       working-directory: ${{ inputs.workdir }}
       run: |
@@ -194,8 +204,8 @@ runs:
         git clone --depth=1 https://github.com/ossf/malicious-packages /tmp/ossf
         node "$GITHUB_ACTION_PATH/dist/check-ossf.js" changed.json /tmp/ossf || true
 
-    - name: GuardDog (Docker)
-      if: steps.diff.outputs.changed != '0' && inputs.enable-guarddog == 'true'
+    - name: GuardDog (pip)
+      if: steps.review.outputs.changed != '0' && inputs.enable-guarddog == 'true'
       shell: bash
       working-directory: ${{ inputs.workdir }}
       run: |
@@ -279,7 +289,7 @@ runs:
 
     - name: Count GuardDog findings (best-effort)
       id: guarddog_count
-      if: steps.diff.outputs.changed != '0' && inputs.enable-guarddog == 'true'
+      if: steps.review.outputs.changed != '0' && inputs.enable-guarddog == 'true'
       shell: bash
       working-directory: ${{ inputs.workdir }}
       run: |
@@ -292,7 +302,7 @@ runs:
     - name: Summary (preview)
       shell: bash
       run: |
-        echo "Changed deps: ${{ steps.diff.outputs.changed }}"
+        echo "Changed deps: ${{ steps.review.outputs.changed }}"
         echo "Age violations (best-effort): ${{ steps.age_count.outputs.count }}"
-        echo "Malware hits (best-effort): ${{ steps.adv_count.outputs.count }}"
+        echo "Malware hits (GitHub Advisory): ${{ steps.review.outputs.malware_hits }}"
         echo "GuardDog findings (best-effort): ${{ steps.guarddog_count.outputs.count }}"

@@ -104,33 +104,10 @@ describe('check-* scripts file existence handling', () => {
     });
   });
 
-  describe('check-gh-malware script', () => {
-    it('should handle missing changed.json file gracefully', () => {
-      if (existsSync(testChangedFile)) {
-        rmSync(testChangedFile);
-      }
-
-      try {
-        execSync(`node ${join(__dirname, '../dist/check-gh-malware.js')} changed.json false`, {
-          encoding: 'utf8',
-          stdio: 'pipe',
-          env: { ...process.env, GITHUB_TOKEN: 'fake-token' }
-        });
-        fail('Expected script to exit with error');
-      } catch (error: any) {
-        expect(error.status).toBe(1);
-        expect(error.stderr).toContain('changed.json file not found');
-      }
-    });
-
+  describe('dependency-review script', () => {
     it('should require GITHUB_TOKEN', () => {
-      const testData = [
-        { name: 'test-package', version: '1.0.0' }
-      ];
-      writeFileSync(testChangedFile, JSON.stringify(testData, null, 2));
-
       try {
-        execSync(`node ${join(__dirname, '../dist/check-gh-malware.js')} changed.json false`, {
+        execSync(`node ${join(__dirname, '../dist/dependency-review.js')}`, {
           encoding: 'utf8',
           stdio: 'pipe',
           env: { ...process.env, GITHUB_TOKEN: undefined }
@@ -139,6 +116,20 @@ describe('check-* scripts file existence handling', () => {
       } catch (error: any) {
         expect(error.status).toBe(1);
         expect(error.stderr).toContain('GITHUB_TOKEN is required');
+      }
+    });
+
+    it('should require GITHUB_REPOSITORY', () => {
+      try {
+        execSync(`node ${join(__dirname, '../dist/dependency-review.js')}`, {
+          encoding: 'utf8',
+          stdio: 'pipe',
+          env: { ...process.env, GITHUB_TOKEN: 'fake-token', GITHUB_REPOSITORY: undefined }
+        });
+        fail('Expected script to exit with error');
+      } catch (error: any) {
+        expect(error.status).toBe(1);
+        expect(error.stderr).toContain('GITHUB_REPOSITORY environment variable is required');
       }
     });
   });
