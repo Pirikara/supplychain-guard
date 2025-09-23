@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 
 type SummaryData = {
   dependencyReview: {
@@ -220,11 +220,21 @@ async function commentOnPR(summary: string): Promise<void> {
       return;
     }
 
-    // Use gh CLI to comment on PR
-    const comment = summary.replace(/"/g, '\\"');
-    const command = `gh pr comment ${prNumber} --body "${comment}" --repo ${repo}`;
+    // Use gh CLI to comment on PR with file-based approach for safety
+    const tempFile = "pr-comment-temp.md";
+    writeFileSync(tempFile, summary);
 
-    execSync(command, { stdio: "inherit" });
+    try {
+      execSync(
+        `gh pr comment ${prNumber} --body-file "${tempFile}" --repo "${repo}"`,
+        { stdio: "inherit" },
+      );
+    } finally {
+      // Clean up temp file
+      if (existsSync(tempFile)) {
+        unlinkSync(tempFile);
+      }
+    }
     console.log(`✅ Successfully commented on PR #${prNumber}`);
   } catch (error) {
     console.error(
