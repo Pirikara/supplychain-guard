@@ -233,23 +233,19 @@ describe("frozen-install", () => {
   });
 
   describe("working directory", () => {
-    it("should handle custom working directory", () => {
-      const subDir = join(testDir, "subproject");
-      mkdirSync(subDir, { recursive: true });
-      writeFileSync(join(subDir, "package.json"), '{"name": "subproject"}');
+    it("should run in current working directory", () => {
+      writeFileSync(join(testDir, "package.json"), '{"name": "test"}');
+      writeFileSync(join(testDir, "package-lock.json"), "{}");
 
       try {
-        execSync(
-          `node ${join(__dirname, "../dist/frozen-install.js")} subproject true`,
-          {
-            encoding: "utf8",
-            stdio: "pipe",
-            cwd: testDir,
-          },
-        );
+        execSync(`node ${join(__dirname, "../dist/frozen-install.js")}`, {
+          encoding: "utf8",
+          stdio: "pipe",
+          cwd: testDir,
+        });
       } catch (error: any) {
         expect(error.stdout).toContain(
-          "Running frozen install check in directory: subproject",
+          "Running frozen install check in current directory:",
         );
         expect(error.stdout).toContain("Node.js");
       }

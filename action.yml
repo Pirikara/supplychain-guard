@@ -75,7 +75,7 @@ runs:
       run: |
         set -e
         echo "Running multi-ecosystem frozen install check..."
-        node "$GITHUB_ACTION_PATH/dist/frozen-install.js" "${{ inputs.workdir }}"
+        node "$GITHUB_ACTION_PATH/dist/frozen-install.js"
 
     - name: Dependency Review (unified check)
       id: review

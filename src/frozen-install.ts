@@ -265,14 +265,10 @@ class PHPEcosystem implements EcosystemHandler {
 }
 
 async function main() {
-  const workdir = process.argv[2] || ".";
-  console.log(`Running frozen install check in directory: ${workdir}`);
+  console.log(
+    `Running frozen install check in current directory: ${process.cwd()}`,
+  );
   console.log(`Ignore scripts: true (hardcoded for security)`);
-
-  // Change to working directory
-  if (workdir !== ".") {
-    process.chdir(workdir);
-  }
 
   const ecosystems: EcosystemHandler[] = [
     new NodeEcosystem(),
