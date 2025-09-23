@@ -1,9 +1,10 @@
 import { execSync } from "node:child_process";
-import { existsSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 describe("pr-comment", () => {
   const testDir = join(__dirname, "../");
+  const fixturesDir = join(__dirname, "fixtures");
 
   beforeEach(() => {
     // Clean up any existing test files
@@ -62,21 +63,28 @@ describe("pr-comment", () => {
 
       expect(result).toContain("PR comment disabled, skipping");
     } catch (error: any) {
-      fail(`Expected success but got error: ${error.message}`);
+      throw new Error(`Expected success but got error: ${error.message}`);
     }
   });
 
   it("should generate summary when pr-comment is enabled", () => {
-    // Create test result files
-    writeFileSync(
+    // Copy fixture files
+    copyFileSync(
+      join(fixturesDir, "sample-ossf.json"),
       join(testDir, "changed.json"),
-      JSON.stringify([
-        { name: "test-package", version: "1.0.0", ecosystem: "npm" },
-      ]),
     );
-    writeFileSync(join(testDir, "malware-hits.json"), "[]");
-    writeFileSync(join(testDir, "ossf.json"), "[]");
-    writeFileSync(join(testDir, "guarddog.json"), "[]");
+    copyFileSync(
+      join(fixturesDir, "empty-ossf.json"),
+      join(testDir, "malware-hits.json"),
+    );
+    copyFileSync(
+      join(fixturesDir, "empty-ossf.json"),
+      join(testDir, "ossf.json"),
+    );
+    copyFileSync(
+      join(fixturesDir, "empty-ossf.json"),
+      join(testDir, "guarddog.json"),
+    );
 
     try {
       const result = execSync(
@@ -97,44 +105,46 @@ describe("pr-comment", () => {
       expect(result).toContain("Supply Chain Security Scan Results");
       expect(result).toContain("Not a pull request, skipping comment");
     } catch (error: any) {
-      fail(`Expected success but got error: ${error.message}`);
+      throw new Error(`Expected success but got error: ${error.message}`);
     }
   });
 
   it("should handle results with findings", () => {
-    // Create test result files with findings
-    writeFileSync(
-      join(testDir, "changed.json"),
-      JSON.stringify([
-        { name: "test-package", version: "1.0.0", ecosystem: "npm" },
-      ]),
-    );
-    writeFileSync(
-      join(testDir, "malware-hits.json"),
-      JSON.stringify([{ package: "malicious-package", vulnerability: "test" }]),
-    );
-    writeFileSync(
-      join(testDir, "ossf.json"),
-      JSON.stringify([{ package: "suspicious-package" }]),
-    );
-    writeFileSync(
-      join(testDir, "guarddog.json"),
-      JSON.stringify([
-        {
-          package: "problem-package",
-          errors: { typosquatting: "Similar to popular package" },
-          results: {},
-        },
-      ]),
-    );
+    // Use a unique timestamp to avoid race conditions
+    const timestamp = Date.now();
+    const uniqueDir = join(__dirname, `../temp-pr-test-${timestamp}`);
+
+    // Create unique test directory
+    if (existsSync(uniqueDir)) {
+      require("node:fs").rmSync(uniqueDir, { recursive: true, force: true });
+    }
+    require("node:fs").mkdirSync(uniqueDir, { recursive: true });
 
     try {
+      // Copy fixture files with findings to unique directory
+      copyFileSync(
+        join(fixturesDir, "sample-ossf.json"),
+        join(uniqueDir, "changed.json"),
+      );
+      copyFileSync(
+        join(fixturesDir, "sample-malware-hits.json"),
+        join(uniqueDir, "malware-hits.json"),
+      );
+      copyFileSync(
+        join(fixturesDir, "sample-ossf-with-findings.json"),
+        join(uniqueDir, "ossf.json"),
+      );
+      copyFileSync(
+        join(fixturesDir, "sample-guarddog.json"),
+        join(uniqueDir, "guarddog.json"),
+      );
+
       const result = execSync(
         `node ${join(__dirname, "../dist/pr-comment.js")} true`,
         {
           encoding: "utf8",
           stdio: "pipe",
-          cwd: testDir,
+          cwd: uniqueDir,
           env: {
             ...process.env,
             NODE_ENV: "test",
@@ -144,10 +154,13 @@ describe("pr-comment", () => {
 
       expect(result).toContain("Issues Found");
       expect(result).toContain("malware vulnerabilities detected");
-      expect(result).toContain("packages matched OSSF database");
+      expect(result).toContain("exact matches found in OSSF database");
       expect(result).toContain("packages with security issues detected");
-    } catch (error: any) {
-      fail(`Expected success but got error: ${error.message}`);
+    } finally {
+      // Clean up unique directory
+      if (existsSync(uniqueDir)) {
+        require("node:fs").rmSync(uniqueDir, { recursive: true, force: true });
+      }
     }
   });
 

@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.5.0",
+  "id": "MAL-TEST-1",
+  "summary": "Test malicious package for unit tests",
+  "affected": [
+    {
+      "package": {
+        "ecosystem": "npm",
+        "name": "malicious-test-package"
+      },
+      "versions": ["1.0.0", "1.1.0", "2.0.0-beta.1"],
+      "ranges": [
+        {
+          "type": "SEMVER",
+          "events": [
+            {
+              "introduced": "0"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

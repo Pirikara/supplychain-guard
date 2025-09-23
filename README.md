@@ -38,7 +38,8 @@ on:
   pull_request:
 
 permissions:
-  contents: read # for checkout
+  contents: read        # for checkout
+  pull-requests: write  # for PR comments (when pr-comment: true)
 
 jobs:
   guard:
@@ -70,6 +71,8 @@ jobs:
           warn-only: 'false'
           # Optional: default is '.'. Working directory for multi-project repositories.
           workdir: '.'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}  # Required for PR comments and API access
 ```
 
 ## Inputs
@@ -141,6 +144,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write  # for PR comments
 
 jobs:
   frontend:
@@ -162,6 +166,8 @@ jobs:
           enable-guarddog: 'true'
           pr-comment: 'true'
           guarddog-fail: 'false'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
   backend:
     runs-on: ubuntu-latest
@@ -181,6 +187,8 @@ jobs:
           workdir: './backend'
           enable-ossf: 'true'
           pr-comment: 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 ```
 
 ## Best Practices
@@ -198,6 +206,8 @@ For most projects, we recommend the following configuration:
     guarddog-fail: 'false'       # Warning only (recommended due to false positives)
     pr-comment: 'true'           # Comment results on PR for visibility
     warn-only: 'false'           # Fail on malware/advisory findings
+  env:
+    GITHUB_TOKEN: ${{ github.token }}  # Required for API access and PR comments
 ```
 
 ### GuardDog Configuration

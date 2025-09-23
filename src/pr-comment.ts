@@ -10,12 +10,21 @@ type SummaryData = {
   ossf: {
     findings: number;
     packages: string[];
+    nameOnlyMatches: Array<{
+      package: string;
+      ecosystem: string;
+    }>;
   };
   guarddog: {
     totalScanned: number;
     findings: number;
     packagesWithIssues: number;
     skippedEcosystems: string[];
+    detailedFindings: Array<{
+      package: string;
+      ecosystem: string;
+      issues: string[];
+    }>;
   };
   frozenInstall: {
     ecosystems: string[];
@@ -47,16 +56,29 @@ function readDependencyReviewResults(): SummaryData["dependencyReview"] {
 function readOSSFResults(): SummaryData["ossf"] {
   try {
     if (!existsSync("ossf.json")) {
-      return { findings: 0, packages: [] };
+      return { findings: 0, packages: [], nameOnlyMatches: [] };
     }
 
     const ossf = JSON.parse(readFileSync("ossf.json", "utf8"));
+
+    // Only consider exact matches (name AND version) as findings
+    const exactMatches = ossf.filter(
+      (item: any) => item.type === "exact_match",
+    );
+
+    // Name-only matches are less critical
+    const nameMatches = ossf.filter((item: any) => item.type === "name_match");
+
     return {
-      findings: ossf.length,
-      packages: ossf.map((item: any) => item.package || "unknown"),
+      findings: exactMatches.length,
+      packages: exactMatches.map((item: any) => item.package || "unknown"),
+      nameOnlyMatches: nameMatches.map((item: any) => ({
+        package: item.package || "unknown",
+        ecosystem: item.ecosystem || "unknown",
+      })),
     };
   } catch {
-    return { findings: 0, packages: [] };
+    return { findings: 0, packages: [], nameOnlyMatches: [] };
   }
 }
 
@@ -93,11 +115,53 @@ function readGuardDogResults(): SummaryData["guarddog"] {
       return false;
     });
 
+    // Extract detailed findings for PR comment
+    const detailedFindings = packagesWithIssues.map((result: any) => {
+      const issues: string[] = [];
+
+      // Add errors
+      if (result.errors && Object.keys(result.errors).length > 0) {
+        for (const [rule, description] of Object.entries(result.errors)) {
+          issues.push(`**${rule}**: ${description}`);
+        }
+      }
+
+      // Add significant results
+      if (result.results && Object.keys(result.results).length > 0) {
+        const significantResults = Object.entries(result.results).filter(
+          ([_key, value]) => {
+            if (value === null || value === undefined) return false;
+            if (typeof value === "object" && Object.keys(value).length === 0)
+              return false;
+            if (Array.isArray(value) && value.length === 0) return false;
+            return true;
+          },
+        );
+
+        for (const [key, value] of significantResults) {
+          if (Array.isArray(value) && value.length > 0) {
+            issues.push(`**${key}**: ${value.join(", ")}`);
+          } else if (typeof value === "object") {
+            issues.push(`**${key}**: ${JSON.stringify(value)}`);
+          } else {
+            issues.push(`**${key}**: ${value}`);
+          }
+        }
+      }
+
+      return {
+        package: result.package || "unknown",
+        ecosystem: result.ecosystem || "unknown",
+        issues: issues,
+      };
+    });
+
     return {
       totalScanned: guarddog.length,
       findings: guarddog.length,
       packagesWithIssues: packagesWithIssues.length,
       skippedEcosystems: [], // This info comes from logs, not JSON
+      detailedFindings: detailedFindings,
     };
   } catch {
     return {
@@ -105,6 +169,7 @@ function readGuardDogResults(): SummaryData["guarddog"] {
       findings: 0,
       packagesWithIssues: 0,
       skippedEcosystems: [],
+      detailedFindings: [],
     };
   }
 }
@@ -158,10 +223,35 @@ function generateMarkdownSummary(data: SummaryData): string {
   // OSSF Malicious Packages
   sections.push("### 🛡️ OSSF Malicious Packages Check");
   if (ossf.findings > 0) {
-    sections.push(`- ⚠️ **${ossf.findings}** packages matched OSSF database`);
-    sections.push(`- Packages: ${ossf.packages.join(", ")}`);
+    sections.push(
+      `- 🚨 **${ossf.findings}** exact matches found in OSSF database`,
+    );
+    sections.push("");
+    sections.push(
+      "**CRITICAL: Exact name and version matches in OSSF malicious packages database:**",
+    );
+    for (const pkg of ossf.packages) {
+      sections.push(
+        `- \`${pkg}\` - **EXACT MATCH** with known malicious package`,
+      );
+    }
   } else {
-    sections.push("- ✅ No matches found in OSSF malicious packages database");
+    sections.push(
+      "- ✅ No exact matches found in OSSF malicious packages database",
+    );
+  }
+
+  if (ossf.nameOnlyMatches.length > 0) {
+    sections.push("");
+    sections.push(
+      `- ⚠️ **${ossf.nameOnlyMatches.length}** packages have name matches (different versions)`,
+    );
+    sections.push("**Name matches (less critical - different versions):**");
+    for (const match of ossf.nameOnlyMatches) {
+      sections.push(
+        `- \`${match.package}\` (${match.ecosystem}) - name matches malicious package database`,
+      );
+    }
   }
   sections.push("");
 
@@ -173,6 +263,18 @@ function generateMarkdownSummary(data: SummaryData): string {
       sections.push(
         `- ⚠️ **${guarddog.packagesWithIssues}** packages with security issues detected`,
       );
+
+      // Add detailed security findings
+      if (guarddog.detailedFindings.length > 0) {
+        sections.push("");
+        sections.push("**Security Issues Found:**");
+        for (const finding of guarddog.detailedFindings) {
+          sections.push(`- \`${finding.package}\` (${finding.ecosystem})`);
+          for (const issue of finding.issues) {
+            sections.push(`  - ⚠️ ${issue}`);
+          }
+        }
+      }
     } else {
       sections.push("- ✅ No security issues detected");
     }

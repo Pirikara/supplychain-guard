@@ -1,0 +1,9 @@
+[
+  {
+    "package": "problem-package",
+    "errors": {
+      "typosquatting": "Similar to popular package"
+    },
+    "results": {}
+  }
+]

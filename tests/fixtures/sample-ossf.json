@@ -1,0 +1,9 @@
+[
+  {
+    "package": "suspicious-package@1.0.0",
+    "name": "suspicious-package",
+    "version": "1.0.0",
+    "ecosystem": "npm",
+    "type": "exact_match"
+  }
+]
