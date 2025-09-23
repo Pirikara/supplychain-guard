@@ -55,8 +55,17 @@ const ECOSYSTEM_MAP: Record<string, string> = {
 **GuardDog Heuristic Analysis** (`src/check-guarddog.ts`)
 - Multi-ecosystem GuardDog integration for npm, PyPI, Go, and GitHub Actions
 - Installs GuardDog via pip (not Docker) for self-hosted runner compatibility
-- Uses all available rules (no custom rule configuration to avoid ecosystem conflicts)
+- Ecosystem-specific rule exclusions (e.g., PyPI's `repository_integrity_mismatch` for false positive reduction)
+- Enhanced parallelization with 8 concurrent scans using global task batching
+- Smart filtering to show only packages with actual security issues (filters out null/empty results)
+- Automatic handling of unsupported ecosystems (Ruby, .NET, etc.) with graceful skipping
 - Supports test environment detection with `NODE_ENV=test` to skip actual installation
+
+**PR Comment Integration** (`src/pr-comment.ts`)
+- Aggregates results from all security components into unified markdown summary
+- Posts comprehensive security scan results as PR comments when enabled
+- Processes and filters GuardDog results to show only meaningful findings
+- Provides actionable security status with clear pass/fail indicators
 
 ### Key Design Decisions
 
@@ -64,7 +73,11 @@ const ECOSYSTEM_MAP: Record<string, string> = {
 
 **GitHub API Integration**: Uses GitHub's Dependency Review API instead of custom lockfile parsing for better accuracy and built-in vulnerability detection.
 
-**Ecosystem-Agnostic Rule Configuration**: GuardDog uses all available rules rather than custom ecosystem-specific rules to avoid compatibility issues.
+**Performance-First GuardDog Architecture**: Enhanced from 3 to 8 concurrent scans with global parallelization across ecosystems rather than per-ecosystem serial processing. Includes ecosystem-specific rule exclusions to reduce false positives.
+
+**Smart Result Filtering**: Implements intelligent filtering to distinguish between GuardDog scan results (null/empty = no issues) and actual security findings, reducing noise in output.
+
+**PR Integration Design**: Unified result aggregation from all security components with markdown formatting for clear PR comments, providing stakeholders with actionable security overviews.
 
 **Test Environment Optimization**: Tests use `NODE_ENV=test` to skip actual tool installations, reducing test execution time from 90 seconds to under 1 second.
 
@@ -94,6 +107,7 @@ The action processes dependency changes through multiple security layers:
 1. GitHub Dependency Review API for malware detection and vulnerability information
 2. Multi-ecosystem frozen install validation to ensure lockfile integrity
 3. OSSF malicious packages database cross-reference
-4. Optional GuardDog heuristic analysis for behavioral pattern detection
+4. Optional GuardDog heuristic analysis for behavioral pattern detection with performance optimizations
+5. PR comment integration for stakeholder visibility and review workflows
 
-All components include proper error handling and support warn-only modes for gradual rollout in CI/CD pipelines.
+All components include proper error handling and support warn-only modes for gradual rollout in CI/CD pipelines. GuardDog includes ecosystem-specific optimizations (PyPI rule exclusions, npm @types/* filtering) to reduce false positives while maintaining security coverage.
