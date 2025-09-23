@@ -28,16 +28,32 @@ function shouldSkipPackage(name: string, ecosystem: string): boolean {
   return false;
 }
 
+function getExcludeRulesFlags(ecosystem: string): string {
+  const excludeRules: string[] = [];
+
+  // PyPI-specific rules with high false positive rates
+  if (ecosystem === "pypi") {
+    excludeRules.push("repository_integrity_mismatch");
+  }
+
+  // Add more ecosystem-specific exclusions as needed
+  // if (ecosystem === "npm") {
+  //   excludeRules.push("some_npm_specific_rule");
+  // }
+
+  return excludeRules.map((rule) => `--exclude-rules ${rule}`).join(" ");
+}
+
 async function scanPackage(
   ecosystem: string,
   name: string,
   version: string,
-  rulesFlags: string,
 ): Promise<GuardDogResult | null> {
   try {
     console.log(`  Scanning ${ecosystem}:${name}@${version}...`);
 
-    const command = `python3 -m guarddog "${ecosystem}" scan "${name}" --version "${version}" ${rulesFlags} --output-format json`;
+    const excludeFlags = getExcludeRulesFlags(ecosystem);
+    const command = `python3 -m guarddog "${ecosystem}" scan "${name}" --version "${version}" ${excludeFlags} --output-format json`;
     const output = execSync(command, {
       encoding: "utf8",
       stdio: "pipe",
@@ -98,18 +114,19 @@ async function main() {
     return;
   }
 
-  // Use all available rules for each ecosystem (no custom rules)
-  const rulesFlags = "";
+  // Rules exclusion is now handled per-ecosystem in scanPackage function
 
   // Group packages by ecosystem
   const ecosystemGroups: Record<
     string,
     Array<{ name: string; version: string }>
   > = {};
+  const skippedEcosystems = new Set<string>();
 
   for (const dep of changed) {
     const guardDogEcosystem = ECOSYSTEM_MAP[dep.ecosystem];
     if (!guardDogEcosystem) {
+      skippedEcosystems.add(dep.ecosystem);
       continue; // Skip unsupported ecosystems
     }
 
@@ -148,8 +165,15 @@ async function main() {
     }
   }
 
+  // Report skipped ecosystems
+  if (skippedEcosystems.size > 0) {
+    console.log(
+      `Skipping unsupported ecosystems: ${Array.from(skippedEcosystems).join(", ")}`,
+    );
+  }
+
   if (allScanTasks.length === 0) {
-    console.log("No packages to scan");
+    console.log("No packages to scan with GuardDog");
     writeFileSync("guarddog.json", "[]");
     return;
   }
@@ -171,7 +195,7 @@ async function main() {
     );
 
     const batchPromises = batch.map((task) =>
-      scanPackage(task.ecosystem, task.name, task.version, rulesFlags),
+      scanPackage(task.ecosystem, task.name, task.version),
     );
 
     const batchResults = await Promise.all(batchPromises);
@@ -198,29 +222,71 @@ async function main() {
       console.log(`  ${ecosystem}: ${count} findings`);
     }
 
-    // Show detailed findings
-    console.log("\nDetailed findings:");
-    for (const result of allResults) {
-      console.log(`\nPackage: ${result.package}`);
-      if (result.ecosystem) {
-        console.log(`  Ecosystem: ${result.ecosystem}`);
-      }
-
-      // Show errors/findings
+    // Show detailed findings (only packages with actual issues)
+    const packagesWithIssues = allResults.filter((result) => {
+      // Check if there are actual errors
       if (result.errors && Object.keys(result.errors).length > 0) {
-        console.log("  Issues found:");
-        for (const [rule, description] of Object.entries(result.errors)) {
-          console.log(`    - ${rule}: ${description}`);
-        }
+        return true;
       }
 
-      // Show results if available
+      // Check if there are significant results (not null/empty)
       if (result.results && Object.keys(result.results).length > 0) {
-        console.log("  Additional findings:");
-        for (const [key, value] of Object.entries(result.results)) {
-          console.log(`    - ${key}: ${JSON.stringify(value)}`);
+        const significantResults = Object.entries(result.results).filter(
+          ([_key, value]) => {
+            if (value === null || value === undefined) return false;
+            if (typeof value === "object" && Object.keys(value).length === 0)
+              return false;
+            if (Array.isArray(value) && value.length === 0) return false;
+            return true;
+          },
+        );
+        return significantResults.length > 0;
+      }
+
+      return false;
+    });
+
+    if (packagesWithIssues.length > 0) {
+      console.log(
+        `\nDetailed findings (${packagesWithIssues.length} packages with actual issues):`,
+      );
+
+      for (const result of packagesWithIssues) {
+        console.log(`\nPackage: ${result.package}`);
+        if (result.ecosystem) {
+          console.log(`  Ecosystem: ${result.ecosystem}`);
+        }
+
+        // Show errors/findings
+        if (result.errors && Object.keys(result.errors).length > 0) {
+          console.log("  Issues found:");
+          for (const [rule, description] of Object.entries(result.errors)) {
+            console.log(`    - ${rule}: ${description}`);
+          }
+        }
+
+        // Show significant results only
+        if (result.results && Object.keys(result.results).length > 0) {
+          const significantResults = Object.entries(result.results).filter(
+            ([_key, value]) => {
+              if (value === null || value === undefined) return false;
+              if (typeof value === "object" && Object.keys(value).length === 0)
+                return false;
+              if (Array.isArray(value) && value.length === 0) return false;
+              return true;
+            },
+          );
+
+          if (significantResults.length > 0) {
+            console.log("  Additional findings:");
+            for (const [key, value] of significantResults) {
+              console.log(`    - ${key}: ${JSON.stringify(value)}`);
+            }
+          }
         }
       }
+    } else {
+      console.log("\nNo packages with actual security issues found.");
     }
 
     if (guardDogFail) {

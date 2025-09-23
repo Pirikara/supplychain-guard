@@ -30,3 +30,4 @@ jobs:
           enable-guarddog: "true"
           guarddog-fail: "false"
           warn-only: "false"
+          pr-comment: "true"
