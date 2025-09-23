@@ -127,34 +127,55 @@ async function main() {
     });
   }
 
-  // Scan all packages
+  // Scan all packages with improved parallelization
   const allResults: GuardDogResult[] = [];
-  const maxConcurrency = 3;
+  const maxConcurrency = 8; // Increased from 3 for better performance
+
+  // Flatten all packages across ecosystems for global parallelization
+  const allScanTasks: Array<{
+    ecosystem: string;
+    name: string;
+    version: string;
+  }> = [];
 
   for (const [ecosystem, packages] of Object.entries(ecosystemGroups)) {
-    if (packages.length === 0) continue;
-
-    console.log(`Scanning ${packages.length} ${ecosystem} packages...`);
-
-    // Process packages with limited concurrency
-    const promises: Promise<GuardDogResult | null>[] = [];
-
     for (const pkg of packages) {
-      // Wait if we've reached max concurrency
-      if (promises.length >= maxConcurrency) {
-        const results = await Promise.all(promises);
-        allResults.push(...results.filter((r) => r !== null));
-        promises.length = 0;
-      }
-
-      promises.push(scanPackage(ecosystem, pkg.name, pkg.version, rulesFlags));
+      allScanTasks.push({
+        ecosystem,
+        name: pkg.name,
+        version: pkg.version,
+      });
     }
+  }
 
-    // Process remaining promises
-    if (promises.length > 0) {
-      const results = await Promise.all(promises);
-      allResults.push(...results.filter((r) => r !== null));
-    }
+  if (allScanTasks.length === 0) {
+    console.log("No packages to scan");
+    writeFileSync("guarddog.json", "[]");
+    return;
+  }
+
+  console.log(
+    `Scanning ${allScanTasks.length} packages across all ecosystems (concurrency: ${maxConcurrency})...`,
+  );
+
+  // Process all packages in batches for optimal performance
+  const batchSize = maxConcurrency;
+
+  for (let i = 0; i < allScanTasks.length; i += batchSize) {
+    const batch = allScanTasks.slice(i, i + batchSize);
+    const batchNum = Math.floor(i / batchSize) + 1;
+    const totalBatches = Math.ceil(allScanTasks.length / batchSize);
+
+    console.log(
+      `Processing batch ${batchNum}/${totalBatches} (${batch.length} packages)...`,
+    );
+
+    const batchPromises = batch.map((task) =>
+      scanPackage(task.ecosystem, task.name, task.version, rulesFlags),
+    );
+
+    const batchResults = await Promise.all(batchPromises);
+    allResults.push(...batchResults.filter((r) => r !== null));
   }
 
   // Write results
@@ -175,6 +196,31 @@ async function main() {
 
     for (const [ecosystem, count] of Object.entries(ecosystemCounts)) {
       console.log(`  ${ecosystem}: ${count} findings`);
+    }
+
+    // Show detailed findings
+    console.log("\nDetailed findings:");
+    for (const result of allResults) {
+      console.log(`\nPackage: ${result.package}`);
+      if (result.ecosystem) {
+        console.log(`  Ecosystem: ${result.ecosystem}`);
+      }
+
+      // Show errors/findings
+      if (result.errors && Object.keys(result.errors).length > 0) {
+        console.log("  Issues found:");
+        for (const [rule, description] of Object.entries(result.errors)) {
+          console.log(`    - ${rule}: ${description}`);
+        }
+      }
+
+      // Show results if available
+      if (result.results && Object.keys(result.results).length > 0) {
+        console.log("  Additional findings:");
+        for (const [key, value] of Object.entries(result.results)) {
+          console.log(`    - ${key}: ${JSON.stringify(value)}`);
+        }
+      }
     }
 
     if (guardDogFail) {
